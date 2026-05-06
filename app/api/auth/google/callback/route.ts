@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { google } from 'googleapis'
-import { GOOGLE_SERVICES, GoogleServiceKey } from '../url/route'
+import { GOOGLE_SERVICES, GoogleServiceKey } from '@/lib/google'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
