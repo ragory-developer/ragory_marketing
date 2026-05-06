@@ -191,6 +191,7 @@ export default function ClientsPage() {
               ))}
             </tr>
           </thead>
+          <tbody>
             {/* Rows */}
             {loading ? (
               <tr><td colSpan={12} style={{ padding:'64px', textAlign:'center', color:'#9ca3af', fontWeight:500 }}>Loading dynamic data...</td></tr>
