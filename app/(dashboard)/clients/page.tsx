@@ -153,9 +153,9 @@ export default function ClientsPage() {
         {STATUSES.map(s => {
           const count = statusCounts[s] ?? clients.filter(c=>c.status===s).length
           return (
-            <div key={s} onClick={()=>setStatusF(statusF===s?'':s)} style={{ background: statusF===s ? STATUS_COLORS[s]+'33' : 'rgba(59,130,246,0.06)', border:`1px solid ${STATUS_COLORS[s]}44`, borderRadius:'10px', padding:'12px', cursor:'pointer', transition:'all 0.2s' }}>
-              <div style={{ fontSize:'20px', fontWeight:700, color: STATUS_COLORS[s] }}>{count}</div>
-              <div style={{ fontSize:'11px', color:'#9ca3af', marginTop:'2px' }}>{s}</div>
+            <div key={s} onClick={()=>setStatusF(statusF===s?'':s)} style={{ background: statusF===s ? STATUS_COLORS[s]+'33' : 'rgba(15, 23, 42, 0.4)', border: statusF===s ? `1px solid ${STATUS_COLORS[s]}99` : '1px solid rgba(255,255,255,0.08)', borderRadius:'12px', padding:'16px', cursor:'pointer', transition:'all 0.3s ease', boxShadow: statusF===s ? `0 0 20px -5px ${STATUS_COLORS[s]}66` : 'none' }}>
+              <div style={{ fontSize:'24px', fontWeight:800, color: statusF===s ? 'white' : STATUS_COLORS[s], transition:'all 0.3s' }}>{count}</div>
+              <div style={{ fontSize:'10px', color:'#9ca3af', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em', marginTop:'4px' }}>{s}</div>
             </div>
           )
         })}
@@ -182,25 +182,25 @@ export default function ClientsPage() {
       </div>
 
       {/* Table */}
-      <div className="table-container" style={{ borderRadius:'12px', overflow:'hidden' }}>
+      <div className="table-container glass-panel" style={{ overflow:'hidden' }}>
         <table style={{ width:'100%', borderCollapse:'collapse', minWidth:'1300px' }}>
           <thead>
-            <tr style={{ background:'rgba(0,0,0,0.2)' }}>
+            <tr style={{ background:'rgba(0,0,0,0.3)', borderBottom:'1px solid rgba(255,255,255,0.1)' }}>
               {['#','Name / Shop','Phone','Address','Status','Priority','Activity','Note','Rating','Created By','Last Follow','Actions'].map(h=>(
-                <th key={h} style={{ padding:'12px 16px', fontSize:'11px', color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.5px', textAlign:'left', whiteSpace:'nowrap' }}>{h}</th>
+                <th key={h} style={{ padding:'16px', fontSize:'10px', color:'#9ca3af', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', textAlign:'left', whiteSpace:'nowrap' }}>{h}</th>
               ))}
             </tr>
           </thead>
-          <tbody>
+            {/* Rows */}
             {loading ? (
-              <tr><td colSpan={12} style={{ padding:'48px', textAlign:'center', color:'#9ca3af' }}>Loading...</td></tr>
+              <tr><td colSpan={12} style={{ padding:'64px', textAlign:'center', color:'#9ca3af', fontWeight:500 }}>Loading dynamic data...</td></tr>
             ) : clients.length === 0 ? (
-              <tr><td colSpan={12} style={{ padding:'48px', textAlign:'center', color:'#9ca3af' }}>No clients found. Add your first one!</td></tr>
+              <tr><td colSpan={12} style={{ padding:'64px', textAlign:'center', color:'#9ca3af', fontWeight:500 }}>No clients found. Start by adding one!</td></tr>
             ) : clients.map((c, i) => {
               const lastNote = c.clientNotes?.[0]
               return (
-                <tr key={c.id} style={{ borderBottom:'1px solid rgba(59,130,246,0.08)', transition:'background 0.15s' }}
-                  onMouseEnter={e=>(e.currentTarget.style.background='rgba(255,255,255,0.03)')}
+                <tr key={c.id} style={{ borderBottom:'1px solid rgba(255,255,255,0.05)', transition:'background 0.2s ease' }}
+                  onMouseEnter={e=>(e.currentTarget.style.background='rgba(255,255,255,0.04)')}
                   onMouseLeave={e=>(e.currentTarget.style.background='transparent')}>
                   <td style={{ padding:'12px 16px', color:'#6b7280', fontSize:'13px' }}>{(page-1)*20+i+1}</td>
                   <td style={{ padding:'12px 16px' }}>
