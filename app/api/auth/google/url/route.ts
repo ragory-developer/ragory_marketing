@@ -29,7 +29,7 @@ export async function GET(request: Request) {
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     prompt: 'consent',
-    scope: GOOGLE_SERVICES[service].scopes,
+    scope: GOOGLE_SERVICES[service].scopes as string[],
     state: service, // pass service name through the OAuth flow
   })
 

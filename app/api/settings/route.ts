@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { GOOGLE_SERVICES, GoogleServiceKey } from '../auth/google/url/route'
+import { GOOGLE_SERVICES, GoogleServiceKey } from '@/lib/google'
 
 // GET — return connection status for all services + whether credentials are configured
 export async function GET() {
