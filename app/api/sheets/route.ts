@@ -54,7 +54,7 @@ export async function POST(req: Request) {
       data: {
         name,
         spreadsheetId: spreadsheetId!,
-        createdBy: userId
+        creator: { connect: { id: userId } }
       }
     })
 

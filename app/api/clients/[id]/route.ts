@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
 import prisma from '@/lib/prisma'
+import { NoteType } from '@prisma/client'
 
 async function getClient(id: string) {
   return prisma.client.findUnique({
@@ -43,10 +44,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   // Detect changes for history tracking
   const notes_to_add = []
   if (status && status !== current.status) {
-    notes_to_add.push({ content: `Status changed from ${current.status} to ${status}`, type: 'GENERAL', author: { connect: { id: (payload as any).userId } } })
+    notes_to_add.push({ content: `Status changed from ${current.status} to ${status}`, type: NoteType.GENERAL, author: { connect: { id: (payload as any).userId } } })
   }
   if (priority && priority !== current.priority) {
-    notes_to_add.push({ content: `Priority changed from ${current.priority} to ${priority}`, type: 'GENERAL', author: { connect: { id: (payload as any).userId } } })
+    notes_to_add.push({ content: `Priority changed from ${current.priority} to ${priority}`, type: NoteType.GENERAL, author: { connect: { id: (payload as any).userId } } })
   }
 
   const client = await prisma.client.update({

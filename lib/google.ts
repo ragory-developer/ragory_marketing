@@ -39,3 +39,25 @@ export const GOOGLE_SERVICES = {
 } as const
 
 export type GoogleServiceKey = keyof typeof GOOGLE_SERVICES
+
+import prisma from './prisma'
+import { google } from 'googleapis'
+
+export async function getGoogleAuth(service: GoogleServiceKey) {
+  const clientId = await prisma.setting.findUnique({ where: { key: 'GOOGLE_CLIENT_ID' } })
+  const clientSecret = await prisma.setting.findUnique({ where: { key: 'GOOGLE_CLIENT_SECRET' } })
+  const refreshToken = await prisma.setting.findUnique({ where: { key: GOOGLE_SERVICES[service].dbKey } })
+
+  if (!clientId?.value || !clientSecret?.value || !refreshToken?.value) {
+    throw new Error(`Google OAuth for ${service} not configured`)
+  }
+
+  const oauth2Client = new google.auth.OAuth2(
+    clientId.value,
+    clientSecret.value,
+    `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/google/callback`
+  )
+
+  oauth2Client.setCredentials({ refresh_token: refreshToken.value })
+  return oauth2Client
+}
