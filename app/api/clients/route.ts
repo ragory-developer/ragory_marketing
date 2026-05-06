@@ -65,25 +65,30 @@ export async function POST(req: NextRequest) {
 
   if (!name || !phone) return NextResponse.json({ error: 'Name and phone are required' }, { status: 400 })
 
-  const client = await prisma.client.create({
-    data: {
-      name, phone,
-      shopName:        shopName        || null,
-      address:         address         || null,
-      alternativePhone:alternativePhone|| null,
-      email:           email           || null,
-      businessType:    businessType    || null,
-      district:        district        || null,
-      area:            area            || null,
-      status:          status          || 'PROSPECT',
-      priority:        priority        || 'MEDIUM',
-      source:          source          || null,
-      notes:           notes           || null,
-      createdById:     (payload as any).userId,
-      assignedToId:    assignedToId    || null,
-    },
-    include: { createdBy: { select: { id: true, name: true } } },
-  })
+  try {
+    const client = await prisma.client.create({
+      data: {
+        name, phone,
+        shopName:        shopName        || null,
+        address:         address         || null,
+        alternativePhone:alternativePhone|| null,
+        email:           email           || null,
+        businessType:    businessType    || null,
+        district:        district        || null,
+        area:            area            || null,
+        status:          status          || 'PROSPECT',
+        priority:        priority        || 'MEDIUM',
+        source:          source          || null,
+        notes:           notes           || null,
+        createdById:     (payload as any).userId,
+        assignedToId:    assignedToId    || null,
+      },
+      include: { createdBy: { select: { id: true, name: true } } },
+    })
 
-  return NextResponse.json(client, { status: 201 })
+    return NextResponse.json(client, { status: 201 })
+  } catch (err: any) {
+    console.error('Prisma Create Error:', err)
+    return NextResponse.json({ error: 'Database error: ' + err.message }, { status: 500 })
+  }
 }

@@ -10,7 +10,6 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
-    "install": "npm install",
     "postinstall": "prisma generate"
   },
   "dependencies": {

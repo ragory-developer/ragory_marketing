@@ -3,6 +3,7 @@ import { verifyToken } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import SideNav from '@/components/SideNav'
 import TopBar from '@/components/TopBar'
+import prisma from '@/lib/prisma'
 
 export default async function DashboardLayout({
   children,
@@ -17,8 +18,6 @@ export default async function DashboardLayout({
 
   const { role, permissions, userId } = payload as any
 
-  const { PrismaClient } = await import('@prisma/client')
-  const prisma = new PrismaClient()
   const user = await prisma.user.findUnique({ where: { id: userId as string } })
   
   if (!user) {

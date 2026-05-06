@@ -103,12 +103,28 @@ export default function ClientsPage() {
   const handleSave = async () => {
     if (!form.name || !form.phone) { toast.error('Name & phone required'); return }
     setSaving(true)
-    const method = editing ? 'PATCH' : 'POST'
-    const url    = editing ? `/api/clients/${editing.id}` : '/api/clients'
-    const res    = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(form) })
-    if (res.ok) { toast.success(editing ? 'Updated!' : 'Client added!'); setShowForm(false); load() }
-    else { const e = await res.json(); toast.error(e.error || 'Error') }
-    setSaving(false)
+    try {
+      const method = editing ? 'PATCH' : 'POST'
+      const url    = editing ? `/api/clients/${editing.id}` : '/api/clients'
+      const res    = await fetch(url, { 
+        method, 
+        headers:{'Content-Type':'application/json'}, 
+        body: JSON.stringify(form) 
+      })
+      if (res.ok) { 
+        toast.success(editing ? 'Updated!' : 'Client added!'); 
+        setShowForm(false); 
+        load() 
+      } else { 
+        const e = await res.json(); 
+        toast.error(e.error || 'Error') 
+      }
+    } catch (err: any) {
+      console.error('Save error:', err)
+      toast.error('Database Connection Error. Please check if your DB server is online.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleDelete = async (id: string) => {
