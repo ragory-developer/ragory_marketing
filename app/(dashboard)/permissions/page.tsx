@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 
 const AVAILABLE_PERMISSIONS = [
   { key: 'dashboard', label: 'Dashboard' },
+  { key: 'clients', label: 'Client Management' },
   { key: 'sheets', label: 'Google Workspace Hub' },
   { key: 'employees', label: 'Employees' }
 ]
