@@ -69,7 +69,10 @@ export default function SettingsPage() {
   const [showCredModal, setShowCredModal] = useState(false)
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
+  const [smsApiKey, setSmsApiKey] = useState('')
+  const [smsSenderId, setSmsSenderId] = useState('')
   const [saving, setSaving] = useState(false)
+  const [savingSms, setSavingSms] = useState(false)
   const [disconnecting, setDisconnecting] = useState<string | null>(null)
 
   const fetchStatus = useCallback(async () => {
@@ -78,6 +81,10 @@ export default function SettingsPage() {
       const data = await res.json()
       setHasCredentials(data.hasCredentials)
       setServiceStatus(data.services || {})
+      if (data.mramSms) {
+        setSmsApiKey(data.mramSms.apiKey)
+        setSmsSenderId(data.mramSms.senderId)
+      }
     } catch {
       toast.error('Failed to load settings')
     }
@@ -123,6 +130,24 @@ export default function SettingsPage() {
       toast.error('Failed to save credentials.')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleSaveSmsSettings = async () => {
+    setSavingSms(true)
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mramSmsApiKey: smsApiKey, mramSmsSenderId: smsSenderId })
+      })
+      if (!res.ok) throw new Error()
+      toast.success('SMS Gateway settings saved!')
+      fetchStatus()
+    } catch {
+      toast.error('Failed to save SMS settings.')
+    } finally {
+      setSavingSms(false)
     }
   }
 
@@ -184,19 +209,37 @@ export default function SettingsPage() {
 
       {/* General Tab */}
       {activeTab === 'general' && (
-        <div className="glass-panel" style={{ padding: '32px', maxWidth: '600px' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '6px', color: 'white' }}>General Configuration</h2>
-          <p style={{ color: '#6B7280', fontSize: '14px', marginBottom: '28px' }}>Core application settings. Restricted to Super Admin.</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div>
-              <label style={{ display: 'block', marginBottom: '6px', color: '#D1D5DB', fontSize: '13px', fontWeight: 500 }}>Application Name</label>
-              <input type="text" className="input-field" defaultValue="Marketing Portal" />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <div className="glass-panel" style={{ padding: '32px', maxWidth: '600px' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '6px', color: 'white' }}>General Configuration</h2>
+            <p style={{ color: '#6B7280', fontSize: '14px', marginBottom: '28px' }}>Core application settings. Restricted to Super Admin.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', color: '#D1D5DB', fontSize: '13px', fontWeight: 500 }}>Application Name</label>
+                <input type="text" className="input-field" defaultValue="Marketing Portal" />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', color: '#D1D5DB', fontSize: '13px', fontWeight: 500 }}>Support Email</label>
+                <input type="email" className="input-field" defaultValue="support@company.com" />
+              </div>
+              <button className="btn-primary" style={{ width: 'auto', alignSelf: 'flex-start' }} onClick={() => toast.success('Settings saved')}>Save Changes</button>
             </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: '6px', color: '#D1D5DB', fontSize: '13px', fontWeight: 500 }}>Support Email</label>
-              <input type="email" className="input-field" defaultValue="support@company.com" />
+          </div>
+
+          <div className="glass-panel" style={{ padding: '32px', maxWidth: '600px' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '6px', color: 'white' }}>SMS Gateway Configuration</h2>
+            <p style={{ color: '#6B7280', fontSize: '14px', marginBottom: '28px' }}>Configure MRAM SMS gateway credentials.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', color: '#D1D5DB', fontSize: '13px', fontWeight: 500 }}>MRAM API Key</label>
+                <input type="text" className="input-field" value={smsApiKey} onChange={e => setSmsApiKey(e.target.value)} placeholder="Your MRAM API Key" />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', color: '#D1D5DB', fontSize: '13px', fontWeight: 500 }}>Sender ID</label>
+                <input type="text" className="input-field" value={smsSenderId} onChange={e => setSmsSenderId(e.target.value)} placeholder="e.g. 8809601017090" />
+              </div>
+              <button className="btn-primary" style={{ width: 'auto', alignSelf: 'flex-start' }} onClick={handleSaveSmsSettings} disabled={savingSms}>{savingSms ? 'Saving...' : 'Save SMS Settings'}</button>
             </div>
-            <button className="btn-primary" style={{ width: 'auto', alignSelf: 'flex-start' }} onClick={() => toast.success('Settings saved')}>Save Changes</button>
           </div>
         </div>
       )}

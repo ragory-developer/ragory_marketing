@@ -3,6 +3,7 @@ import { verifyToken } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import SideNav from '@/components/SideNav'
 import TopBar from '@/components/TopBar'
+import DashboardClient from '@/components/DashboardClient'
 import prisma from '@/lib/prisma'
 
 export default async function DashboardLayout({
@@ -31,13 +32,9 @@ export default async function DashboardLayout({
       <div className="bg-blob" style={{ bottom:'5%', right:'5%', width:'500px', height:'500px', background:'#7c3aed', animationDelay:'-5s' }}></div>
       <div className="bg-blob" style={{ top:'30%', left:'40%', width:'350px', height:'350px', background:'#0ea5e9', animationDelay:'-10s' }}></div>
 
-      <SideNav role={role} permissions={permissions || []} />
-      <div className="main-content">
-        <TopBar userName={user.name} />
-        <div className="content-area">
-          {children}
-        </div>
-      </div>
+      <DashboardClient user={user} role={role} permissions={permissions || []}>
+        {children}
+      </DashboardClient>
     </div>
   )
 }

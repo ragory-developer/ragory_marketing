@@ -30,7 +30,7 @@ const NAV_GROUPS = [
   }
 ]
 
-export default function SideNav({ role, permissions }: { role: string, permissions: string[] }) {
+export default function SideNav({ role, permissions, isOpen, setIsOpen }: { role: string, permissions: string[], isOpen?: boolean, setIsOpen?: (v: boolean) => void }) {
   const pathname = usePathname()
 
   const isVisible = (item: any) => {
@@ -42,13 +42,13 @@ export default function SideNav({ role, permissions }: { role: string, permissio
   }
 
   return (
-    <div className="sidebar">
+    <div className={`sidebar ${isOpen ? 'open' : ''}`}>
       {/* Logo */}
       <div style={{ padding:'0 8px 32px 8px', display:'flex', alignItems:'center', gap:'12px' }}>
         <div style={{ width:'38px', height:'38px', borderRadius:'10px', background:'linear-gradient(135deg,#4f46e5,#7c3aed)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
           <Building2 size={20} color="white" />
         </div>
-        <div>
+        <div className="sidebar-logo-text">
           <div style={{ fontSize:'16px', fontWeight:800, color:'white', lineHeight:1.2 }}>Marketing</div>
           <div style={{ color:'#818cf8', fontSize:'10px', fontWeight:700, letterSpacing:'1.5px', textTransform:'uppercase' }}>Portal</div>
         </div>
@@ -61,7 +61,7 @@ export default function SideNav({ role, permissions }: { role: string, permissio
           if (visibleItems.length === 0) return null
           return (
             <div key={group.label}>
-              <div style={{ fontSize:'10px', fontWeight:700, color:'rgba(255,255,255,0.25)', textTransform:'uppercase', letterSpacing:'0.1em', paddingLeft:'12px', marginBottom:'6px' }}>
+              <div className="sidebar-group-label" style={{ fontSize:'10px', fontWeight:700, color:'rgba(255,255,255,0.25)', textTransform:'uppercase', letterSpacing:'0.1em', paddingLeft:'12px', marginBottom:'6px' }}>
                 {group.label}
               </div>
               <div style={{ display:'flex', flexDirection:'column', gap:'2px' }}>
@@ -71,6 +71,8 @@ export default function SideNav({ role, permissions }: { role: string, permissio
                     <Link
                       key={link.key}
                       href={link.href}
+                      onClick={() => setIsOpen?.(false)}
+                      className="nav-link-inner"
                       style={{
                         display:'flex', alignItems:'center', gap:'10px',
                         padding:'10px 12px', borderRadius:'10px', textDecoration:'none',
@@ -103,7 +105,7 @@ export default function SideNav({ role, permissions }: { role: string, permissio
                       <span style={{ display:'flex', alignItems:'center', flexShrink:0, color: isActive ? '#a5b4fc' : 'inherit' }}>
                         {link.icon}
                       </span>
-                      <span>{link.label}</span>
+                      <span className="sidebar-label">{link.label}</span>
                     </Link>
                   )
                 })}
@@ -119,7 +121,7 @@ export default function SideNav({ role, permissions }: { role: string, permissio
           <div style={{ width:'28px', height:'28px', borderRadius:'8px', background:'linear-gradient(135deg,#4f46e5,#7c3aed)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'11px', fontWeight:700, color:'white', flexShrink:0 }}>
             {role === 'SUPER_ADMIN' ? 'SA' : role === 'ADMIN' ? 'AD' : 'US'}
           </div>
-          <div>
+          <div className="sidebar-role-text">
             <div style={{ fontSize:'11px', color:'#e2e8f0', fontWeight:600 }}>{role.replace('_',' ')}</div>
             <div style={{ fontSize:'10px', color:'rgba(255,255,255,0.3)' }}>Access Level</div>
           </div>

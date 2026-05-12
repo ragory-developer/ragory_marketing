@@ -10,6 +10,7 @@ async function getClient(id: string) {
     include: {
       createdBy:  { select: { id: true, name: true } },
       assignedTo: { select: { id: true, name: true } },
+      market:     true,
       clientNotes: {
         orderBy: { createdAt: 'desc' },
         include: { author: { select: { id: true, name: true } } },
@@ -36,7 +37,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
-  const { name, phone, shopName, address, alternativePhone, email, businessType, district, area, status, priority, source, notes, assignedToId, nextFollowUpAt, rating } = body
+  const { name, phone, shopName, address, alternativePhone, email, businessType, district, area, status, priority, source, notes, assignedToId, nextFollowUpAt, rating, marketId, facebookUrl } = body
 
   const current = await prisma.client.findUnique({ where: { id: params.id } })
   if (!current) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -66,13 +67,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       ...(priority          !== undefined && { priority }),
       ...(source            !== undefined && { source }),
       ...(notes             !== undefined && { notes }),
+      ...(marketId          !== undefined && { marketId }),
+      ...(facebookUrl       !== undefined && { facebookUrl }),
       ...(assignedToId      !== undefined && { assignedToId }),
       ...(nextFollowUpAt    !== undefined && { nextFollowUpAt: nextFollowUpAt ? new Date(nextFollowUpAt) : null }),
       ...(rating            !== undefined && { rating: parseInt(rating) }),
       ...(notes_to_add.length > 0 && { clientNotes: { create: notes_to_add } }),
       ...(notes_to_add.length > 0 && { lastFollowUpAt: new Date() }),
     },
-    include: { createdBy: { select: { id: true, name: true } }, assignedTo: { select: { id: true, name: true } }, clientNotes: { orderBy: { createdAt: 'desc' }, take: 1 } },
+    include: { createdBy: { select: { id: true, name: true } }, assignedTo: { select: { id: true, name: true } }, market: true, clientNotes: { orderBy: { createdAt: 'desc' }, take: 1 } },
   })
   return NextResponse.json(client)
 }

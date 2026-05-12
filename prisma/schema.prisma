@@ -111,6 +111,10 @@ model Client {
   tags              String[]      @default([])
   notes             String?       @db.Text
   rating            Int           @default(0)
+  facebookUrl       String?       @map("facebook_url")
+
+  marketId          String?       @map("market_id") @db.Uuid
+  market            Market?       @relation(fields: [marketId], references: [id])
 
   createdById       String        @map("created_by") @db.Uuid
   assignedToId      String?       @map("assigned_to") @db.Uuid
@@ -131,6 +135,16 @@ model Client {
   @@index([district])
   @@map("clients")
 }
+
+model Market {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  clients   Client[]
+
+  @@map("markets")
+}
+
 
 model ClientNote {
   id          String      @id @default(uuid()) @db.Uuid
@@ -169,4 +183,5 @@ enum NoteType {
   VISIT
   FOLLOW_UP
   COMPLAINT
+  SMS
 }

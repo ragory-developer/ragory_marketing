@@ -41,6 +41,7 @@ export async function GET(req: NextRequest) {
       include: {
         createdBy:  { select: { id: true, name: true } },
         assignedTo: { select: { id: true, name: true } },
+        market:     true,
         clientNotes: { orderBy: { createdAt: 'desc' }, take: 1 },
       },
     }),
@@ -61,7 +62,7 @@ export async function POST(req: NextRequest) {
   if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
-  const { name, phone, shopName, address, alternativePhone, email, businessType, district, area, status, priority, source, notes, assignedToId } = body
+  const { name, phone, shopName, address, alternativePhone, email, businessType, district, area, status, priority, source, notes, assignedToId, marketId, facebookUrl } = body
 
   if (!name || !phone) return NextResponse.json({ error: 'Name and phone are required' }, { status: 400 })
 
@@ -80,10 +81,22 @@ export async function POST(req: NextRequest) {
         priority:        priority        || 'MEDIUM',
         source:          source          || null,
         notes:           notes           || null,
+        marketId:        marketId        || null,
+        facebookUrl:     facebookUrl     || null,
         createdById:     (payload as any).userId,
         assignedToId:    assignedToId    || null,
+        // Create initial note if provided
+        ...(notes && {
+          clientNotes: {
+            create: {
+              content: notes,
+              type: 'GENERAL',
+              authorId: (payload as any).userId
+            }
+          }
+        })
       },
-      include: { createdBy: { select: { id: true, name: true } } },
+      include: { createdBy: { select: { id: true, name: true } }, market: true },
     })
 
     return NextResponse.json(client, { status: 201 })

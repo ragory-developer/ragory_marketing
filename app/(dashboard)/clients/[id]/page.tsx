@@ -9,10 +9,10 @@ const STATUS_COLORS: Record<string, string> = {
   NEGOTIATING: '#8b5cf6', CONVERTED:  '#10b981', LOST:       '#ef4444', INACTIVE: '#6b7280',
 }
 const NOTE_TYPE_COLORS: Record<string, string> = {
-  GENERAL:'#6366f1', CALL:'#0ea5e9', VISIT:'#10b981', FOLLOW_UP:'#f59e0b', COMPLAINT:'#ef4444'
+  GENERAL:'#6366f1', CALL:'#0ea5e9', VISIT:'#10b981', FOLLOW_UP:'#f59e0b', COMPLAINT:'#ef4444', SMS:'#ec4899'
 }
 const STATUSES = ['PROSPECT','CONTACTED','INTERESTED','NEGOTIATING','CONVERTED','LOST','INACTIVE']
-const NOTE_TYPES = ['GENERAL','CALL','VISIT','FOLLOW_UP','COMPLAINT']
+const NOTE_TYPES = ['GENERAL','CALL','VISIT','FOLLOW_UP','COMPLAINT', 'SMS']
 
 export default function ClientDetailsPage() {
   const params = useParams()
@@ -89,9 +89,9 @@ export default function ClientDetailsPage() {
         <h1 style={{ color:'white', fontSize:'24px', fontWeight:700 }}>Client Details</h1>
       </div>
 
-      <div style={{ display:'flex', gap:'24px', flex:1, minHeight:0 }}>
+      <div className="client-details-layout" style={{ display:'flex', gap:'24px', flex:1, minHeight:0 }}>
         {/* ===== LEFT: Info + Log Activity ===== */}
-        <div className="anim-pane-left glass-shine" style={{ flex:'0 0 550px', background:'rgba(15, 23, 42, 0.8)', backdropFilter:'blur(30px)', WebkitBackdropFilter:'blur(30px)', border:'1px solid rgba(255,255,255,0.1)', boxShadow:'0 16px 40px 0 rgba(0,0,0,0.6)', borderRadius:'24px', padding:'32px', overflowY:'auto', display:'flex', flexDirection:'column', gap:'28px' }}>
+        <div className="anim-pane-left glass-shine client-details-left" style={{ flex:'0 0 550px', background:'rgba(15, 23, 42, 0.8)', backdropFilter:'blur(30px)', WebkitBackdropFilter:'blur(30px)', border:'1px solid rgba(255,255,255,0.1)', boxShadow:'0 16px 40px 0 rgba(0,0,0,0.6)', borderRadius:'24px', padding:'32px', overflowY:'auto', display:'flex', flexDirection:'column', gap:'28px' }}>
 
           {/* Header */}
           <div style={{ display:'flex', alignItems:'center', gap:'14px' }}>
@@ -107,9 +107,17 @@ export default function ClientDetailsPage() {
 
           {/* Quick Info */}
           <div style={{ background:'rgba(0,0,0,0.2)', borderRadius:'12px', padding:'20px', border:'1px solid rgba(255,255,255,0.05)', display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'16px' }}>
-            {[['📞','Phone',client.phone],['📞','Alt',client.alternativePhone||'—'],['📧','Email',client.email||'—'],['🏢','Business',client.businessType||'—'],['📍','Location',`${client.district||''}${client.area?', '+client.area:''}`||'—'],['🎯','Priority',client.priority],['📢','Source',client.source||'—'],['👤','Added by',client.createdBy?.name],['📅','Added',new Date(client.createdAt).toLocaleDateString()]].map(([ic,l,v])=>(
+            {[['📞','Phone',client.phone],['📞','Alt',client.alternativePhone||'—'],['📧','Email',client.email||'—'],['🛒','Market',client.market?.name||'—'],['🏢','Business',client.businessType||'—'],['📍','Location',`${client.district||''}${client.area?', '+client.area:''}`||'—'],['🎯','Priority',client.priority],['📢','Source',client.source||'—'],['👤','Added by',client.createdBy?.name],['📅','Added',new Date(client.createdAt).toLocaleDateString()]].map(([ic,l,v])=>(
               <div key={l}><div style={{ color:'#9ca3af', fontSize:'10px', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:'4px', display:'flex', alignItems:'center', gap:'4px' }}>{ic} {l}</div><div style={{ color:'#f3f4f6', fontSize:'13px', fontWeight:600 }}>{v}</div></div>
             ))}
+            {client.facebookUrl && (
+              <div style={{ gridColumn:'1/-1' }}>
+                <div style={{ color:'#9ca3af', fontSize:'10px', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:'4px' }}>🔗 Facebook Profile</div>
+                <a href={client.facebookUrl.startsWith('http') ? client.facebookUrl : `https://${client.facebookUrl}`} target="_blank" rel="noopener noreferrer" style={{ color:'#6366f1', fontSize:'13px', fontWeight:600, textDecoration:'none', wordBreak:'break-all' }}>
+                  {client.facebookUrl} ↗
+                </a>
+              </div>
+            )}
             {client.address && <div style={{ gridColumn:'1/-1', marginTop:'4px' }}><div style={{ color:'#9ca3af', fontSize:'10px', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:'4px' }}>📍 Address</div><div style={{ color:'#f3f4f6', fontSize:'13px', lineHeight:'1.5' }}>{client.address}</div></div>}
           </div>
 
@@ -166,7 +174,7 @@ export default function ClientDetailsPage() {
         </div>
 
         {/* ===== RIGHT: Activity History Table ===== */}
-        <div className="anim-pane-right glass-shine" style={{ flex:1, background:'rgba(15, 23, 42, 0.7)', backdropFilter:'blur(30px)', WebkitBackdropFilter:'blur(30px)', border:'1px solid rgba(255,255,255,0.1)', boxShadow:'0 16px 40px 0 rgba(0,0,0,0.6)', borderRadius:'24px', display:'flex', flexDirection:'column', overflow:'hidden' }}>
+        <div className="anim-pane-right glass-shine client-details-right" style={{ flex:1, background:'rgba(15, 23, 42, 0.7)', backdropFilter:'blur(30px)', WebkitBackdropFilter:'blur(30px)', border:'1px solid rgba(255,255,255,0.1)', boxShadow:'0 16px 40px 0 rgba(0,0,0,0.6)', borderRadius:'24px', display:'flex', flexDirection:'column', overflow:'hidden' }}>
           {/* Header sticky */}
           <div style={{ padding:'20px 24px', borderBottom:'1px solid rgba(255,255,255,0.05)', display:'flex', alignItems:'center', justifyContent:'space-between', background:'rgba(0,0,0,0.2)' }}>
             <h3 style={{ color:'white', fontSize:'16px', fontWeight:700, display:'flex', alignItems:'center', gap:'10px' }}>

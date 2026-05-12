@@ -1,0 +1,16 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "npm",
+			"script": "db:seed",
+			"problemMatcher": [],
+			"label": "npm: db:seed",
+			"detail": "tsx prisma/seed.ts",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			}
+		}
+	]
+}

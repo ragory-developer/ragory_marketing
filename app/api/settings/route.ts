@@ -7,13 +7,19 @@ export async function GET() {
   try {
     const clientId = await prisma.setting.findUnique({ where: { key: 'GOOGLE_CLIENT_ID' } })
     const clientSecret = await prisma.setting.findUnique({ where: { key: 'GOOGLE_CLIENT_SECRET' } })
+    const smsApiKey = await prisma.setting.findUnique({ where: { key: 'MRAM_SMS_API_KEY' } })
+    const smsSenderId = await prisma.setting.findUnique({ where: { key: 'MRAM_SMS_SENDER_ID' } })
 
     const hasCredentials = !!(clientId?.value && clientSecret?.value)
 
     // Returning empty services for now as requested to avoid Google API errors
     return NextResponse.json({ 
       hasCredentials, 
-      services: {} 
+      services: {},
+      mramSms: {
+        apiKey: smsApiKey?.value || '',
+        senderId: smsSenderId?.value || ''
+      }
     })
   } catch (error) {
     console.error('[Settings GET]', error)
@@ -36,6 +42,20 @@ export async function PUT(req: Request) {
         where: { key: 'GOOGLE_CLIENT_SECRET' },
         update: { value: body.googleClientSecret.trim() },
         create: { key: 'GOOGLE_CLIENT_SECRET', value: body.googleClientSecret.trim() }
+      })
+      return NextResponse.json({ success: true })
+    }
+
+    if (body.mramSmsApiKey !== undefined && body.mramSmsSenderId !== undefined) {
+      await prisma.setting.upsert({
+        where: { key: 'MRAM_SMS_API_KEY' },
+        update: { value: body.mramSmsApiKey.trim() },
+        create: { key: 'MRAM_SMS_API_KEY', value: body.mramSmsApiKey.trim() }
+      })
+      await prisma.setting.upsert({
+        where: { key: 'MRAM_SMS_SENDER_ID' },
+        update: { value: body.mramSmsSenderId.trim() },
+        create: { key: 'MRAM_SMS_SENDER_ID', value: body.mramSmsSenderId.trim() }
       })
       return NextResponse.json({ success: true })
     }

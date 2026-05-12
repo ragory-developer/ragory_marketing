@@ -1,9 +1,9 @@
 'use client'
 import { useRouter } from 'next/navigation'
-import { LogOut, Bell } from 'lucide-react'
+import { LogOut, Bell, Menu } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-export default function TopBar({ userName }: { userName: string }) {
+export default function TopBar({ userName, onMenuClick }: { userName: string, onMenuClick?: () => void }) {
   const router = useRouter()
 
   const handleLogout = async () => {
@@ -17,10 +17,15 @@ export default function TopBar({ userName }: { userName: string }) {
 
   return (
     <div className="topbar">
-      {/* Left: breadcrumb placeholder / page title slot */}
-      <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-        <div style={{ width:'6px', height:'6px', borderRadius:'50%', background:'#4ade80', boxShadow:'0 0 8px #4ade80' }} />
-        <span style={{ color:'rgba(255,255,255,0.3)', fontSize:'13px', fontWeight:500 }}>System Online</span>
+      {/* Left: Menu button + breadcrumb placeholder / page title slot */}
+      <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
+        <button className="menu-btn" onClick={onMenuClick}>
+          <Menu size={20} />
+        </button>
+        <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+          <div style={{ width:'6px', height:'6px', borderRadius:'50%', background:'#4ade80', boxShadow:'0 0 8px #4ade80' }} />
+          <span className="topbar-username" style={{ color:'rgba(255,255,255,0.3)', fontSize:'13px', fontWeight:500 }}>System Online</span>
+        </div>
       </div>
 
       {/* Right: user + actions */}
@@ -37,7 +42,7 @@ export default function TopBar({ userName }: { userName: string }) {
         <div style={{ width:'1px', height:'28px', background:'rgba(255,255,255,0.08)' }} />
 
         {/* User info */}
-        <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+        <div className="topbar-username" style={{ display:'flex', alignItems:'center', gap:'10px' }}>
           <div style={{ width:'34px', height:'34px', borderRadius:'10px', background:'linear-gradient(135deg,#4f46e5,#7c3aed)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'13px', fontWeight:800, color:'white', flexShrink:0 }}>
             {initials}
           </div>
