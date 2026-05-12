@@ -7,7 +7,8 @@ const AVAILABLE_PERMISSIONS = [
   { key: 'dashboard', label: 'Dashboard' },
   { key: 'clients', label: 'Client Management' },
   { key: 'sheets', label: 'Google Workspace Hub' },
-  { key: 'employees', label: 'Employees' }
+  { key: 'employees', label: 'Employees' },
+  { key: 'emergency_notes', label: 'Emergency Notes (Add/Edit)' }
 ]
 
 export default function PermissionsPage() {

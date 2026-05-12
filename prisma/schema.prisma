@@ -21,14 +21,16 @@ model User {
   isActive   Boolean      @default(true) @map("is_active")
   createdAt  DateTime     @default(now()) @map("created_at")
   updatedAt  DateTime     @updatedAt @map("updated_at")
-  
+
   permissions Permission[]
   createdSheets GoogleSheet[] @relation("CreatedBy")
   updatedSheets GoogleSheet[] @relation("UpdatedBy")
   deletedSheets GoogleSheet[] @relation("DeletedBy")
   clientsCreated  Client[]    @relation("ClientCreatedBy")
   clientsAssigned Client[]    @relation("ClientAssignedTo")
-  clientNotes     ClientNote[] @relation("NoteAuthor")
+  clientNotes         ClientNote[] @relation("NoteAuthor")
+  emergencyNotes      EmergencyNote[] @relation("EmergencyNoteAuthor")
+  emergencyNotesDone  EmergencyNote[] @relation("EmergencyNoteDoneBy")
 
   @@map("users")
 }
@@ -128,6 +130,7 @@ model Client {
   createdBy         User          @relation("ClientCreatedBy", fields: [createdById], references: [id])
   assignedTo        User?         @relation("ClientAssignedTo", fields: [assignedToId], references: [id])
   clientNotes       ClientNote[]
+  emergencyNotes    EmergencyNote[]
 
   @@index([phone])
   @@index([status])
@@ -143,6 +146,23 @@ model Market {
   clients   Client[]
 
   @@map("markets")
+}
+
+model EmergencyNote {
+  id        String   @id @default(uuid()) @db.Uuid
+  clientId  String   @map("client_id") @db.Uuid
+  content   String   @db.Text
+  priority  Priority @default(MEDIUM)
+  isDone    Boolean  @default(false) @map("is_done")
+  doneById  String?  @map("done_by") @db.Uuid
+  authorId  String   @map("author_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  author    User     @relation("EmergencyNoteAuthor", fields: [authorId], references: [id])
+  doneBy    User?    @relation("EmergencyNoteDoneBy", fields: [doneById], references: [id])
+
+  @@map("emergency_notes")
 }
 
 
@@ -166,7 +186,7 @@ enum ClientStatus {
   CONTACTED
   INTERESTED
   NEGOTIATING
-  CONVERTED
+  CLIENTS
   LOST
   INACTIVE
 }

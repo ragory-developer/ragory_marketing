@@ -1,18 +1,18 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, Plus, Phone, MapPin, User, Edit2, Trash2, MessageSquare, RefreshCw, ChevronLeft, ChevronRight, Filter, X, MessageCircle } from 'lucide-react'
+import { Search, Plus, Phone, MapPin, User, Edit2, Trash2, MessageSquare, RefreshCw, ChevronLeft, ChevronRight, Filter, X, MessageCircle, AlertCircle, Bell, ShieldCheck } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const STATUS_COLORS: Record<string, string> = {
   PROSPECT:    '#6366f1', CONTACTED: '#0ea5e9', INTERESTED: '#f59e0b',
-  NEGOTIATING: '#8b5cf6', CONVERTED:  '#10b981', LOST:       '#ef4444', INACTIVE: '#6b7280',
+  NEGOTIATING: '#8b5cf6', CLIENTS:  '#10b981', LOST:       '#ef4444', INACTIVE: '#6b7280',
 }
 const PRIORITY_COLORS: Record<string, string> = { LOW: '#6b7280', MEDIUM: '#f59e0b', HIGH: '#ef4444' }
 const NOTE_TYPE_COLORS: Record<string, string> = {
   GENERAL:'#6366f1', CALL:'#0ea5e9', VISIT:'#10b981', FOLLOW_UP:'#f59e0b', COMPLAINT:'#ef4444', SMS: '#ec4899'
 }
-const STATUSES = ['PROSPECT','CONTACTED','INTERESTED','NEGOTIATING','CONVERTED','LOST','INACTIVE']
+const STATUSES = ['PROSPECT','CONTACTED','INTERESTED','NEGOTIATING','CLIENTS','LOST','INACTIVE']
 const PRIORITIES = ['LOW','MEDIUM','HIGH']
 const NOTE_TYPES = ['GENERAL','CALL','VISIT','FOLLOW_UP','COMPLAINT', 'SMS']
 
@@ -24,6 +24,8 @@ type Client = {
   createdBy: { name: string }; assignedTo?: { name: string }
   lastFollowUpAt?: string; nextFollowUpAt?: string; createdAt: string
   clientNotes: { id: string; content: string; type: string; createdAt: string; author: { name: string } }[]
+  emergencyNotes: { id: string; isDone: boolean }[]
+  facebookUrl?: string
 }
 
 const emptyForm = {
@@ -36,22 +38,22 @@ const Field = ({ label, name, type='text', options, value, onChange }: any) => (
   <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
     <label style={{ fontSize:'11px', color:'#9ca3af', textTransform:'uppercase', fontWeight:600, letterSpacing:'0.05em' }}>{label}</label>
     {options ? (
-      <select 
-        value={value} 
-        onChange={e => onChange(name, e.target.value)} 
-        className="input-field" 
+      <select
+        value={value}
+        onChange={e => onChange(name, e.target.value)}
+        className="input-field"
         style={{ fontSize:'14px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.1)' }}
       >
         {options.map((o:string) => <option key={o} value={o} style={{ background:'#111827' }}>{o}</option>)}
       </select>
     ) : (
-      <input 
-        type={type} 
-        value={value} 
-        onChange={e => onChange(name, e.target.value)} 
-        className="input-field" 
+      <input
+        type={type}
+        value={value}
+        onChange={e => onChange(name, e.target.value)}
+        className="input-field"
         autoComplete="off"
-        style={{ fontSize:'14px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.1)' }} 
+        style={{ fontSize:'14px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.1)' }}
       />
     )}
   </div>
@@ -75,7 +77,7 @@ export default function ClientsPage() {
   const [quickNoteId, setQuickNoteId] = useState<string|null>(null)
   const [quickNoteText, setQuickNoteText] = useState('')
   const [quickNoteType, setQuickNoteType] = useState('CALL')
-  
+
   const [markets, setMarkets] = useState<{id:string, name:string}[]>([])
   const [userRole, setUserRole] = useState('')
   const [marketSearch, setMarketSearch] = useState('')
@@ -87,7 +89,17 @@ export default function ClientsPage() {
 
   // SMS State
   const [showSmsModal, setShowSmsModal] = useState(false)
-  const [smsClient, setSmsClient] = useState<Client | null>(null)
+  const [smsClient, setSmsClient] = useState<Client|null>(null)
+  
+  // Emergency Notes
+  const [showEmergencyModal, setShowEmergencyModal] = useState(false)
+  const [emergencyClient, setEmergencyClient] = useState<Client|null>(null)
+  const [emergencyNotes, setEmergencyNotes] = useState<any[]>([])
+  const [newEmergencyText, setNewEmergencyText] = useState('')
+  const [newEmergencyPriority, setNewEmergencyPriority] = useState('MEDIUM')
+  const [isEmergencyLoading, setIsEmergencyLoading] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState('')
+  const [userPermissions, setUserPermissions] = useState<string[]>([])
   const [smsText, setSmsText] = useState('')
   const [selectedPhoneIndex, setSelectedPhoneIndex] = useState(0) // 0=primary, 1=alt
   const [smsScheduledTime, setSmsScheduledTime] = useState('')
@@ -124,10 +136,12 @@ export default function ClientsPage() {
       const res = await fetch('/api/auth/me')
       const data = await res.json()
       setUserRole(data.user?.role || '')
+      setCurrentUserId(data.user?.id || '')
+      setUserPermissions(data.permissions || [])
     } catch {}
   }
 
-  useEffect(() => { 
+  useEffect(() => {
     load()
     fetchMarkets()
     fetchMe()
@@ -142,17 +156,17 @@ export default function ClientsPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [load])
 
-  const openAdd = () => { 
-    setForm(emptyForm); 
-    setEditing(null); 
+  const openAdd = () => {
+    setForm(emptyForm);
+    setEditing(null);
     setMarketSearch('');
-    setShowForm(true) 
+    setShowForm(true)
   }
   const openEdit = (c: Client) => {
-    setForm({ 
-      name:c.name, phone:c.phone, shopName:c.shopName||'', address:c.address||'', 
-      alternativePhone:c.alternativePhone||'', email:c.email||'', 
-      businessType:c.businessType||'', district:c.district||'', area:c.area||'', 
+    setForm({
+      name:c.name, phone:c.phone, shopName:c.shopName||'', address:c.address||'',
+      alternativePhone:c.alternativePhone||'', email:c.email||'',
+      businessType:c.businessType||'', district:c.district||'', area:c.area||'',
       status:c.status, priority:c.priority, source:c.source||'', notes:c.notes||'',
       marketId: c.marketId || '',
       facebookUrl: c.facebookUrl || ''
@@ -167,18 +181,18 @@ export default function ClientsPage() {
     try {
       const method = editing ? 'PATCH' : 'POST'
       const url    = editing ? `/api/clients/${editing.id}` : '/api/clients'
-      const res    = await fetch(url, { 
-        method, 
-        headers:{'Content-Type':'application/json'}, 
-        body: JSON.stringify(form) 
+      const res    = await fetch(url, {
+        method,
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(form)
       })
-      if (res.ok) { 
-        toast.success(editing ? 'Updated!' : 'Client added!'); 
-        setShowForm(false); 
-        load() 
-      } else { 
-        const e = await res.json(); 
-        toast.error(e.error || 'Error') 
+      if (res.ok) {
+        toast.success(editing ? 'Updated!' : 'Client added!');
+        setShowForm(false);
+        load()
+      } else {
+        const e = await res.json();
+        toast.error(e.error || 'Error')
       }
     } catch (err: any) {
       console.error('Save error:', err)
@@ -215,12 +229,93 @@ export default function ClientsPage() {
     setSmsClient(c)
     setSelectedPhoneIndex(0)
     setSmsText('')
-    setSmsScheduledTime('')
     setSmsLanguage('english')
     setShowSmsModal(true)
   }
 
-  const handleSendSms = async () => {
+  const openEmergencyModal = async (c: Client) => {
+    setEmergencyClient(c)
+    setShowEmergencyModal(true)
+    setIsEmergencyLoading(true)
+    try {
+      const res = await fetch(`/api/clients/${c.id}/emergency-notes`)
+      if (res.ok) {
+        setEmergencyNotes(await res.json())
+      }
+    } catch {
+      toast.error('Could not load emergency notes')
+    } finally {
+      setIsEmergencyLoading(false)
+    }
+  }
+
+  const addEmergencyNote = async () => {
+    if (!emergencyClient || !newEmergencyText.trim()) return
+    try {
+      const res = await fetch(`/api/clients/${emergencyClient.id}/emergency-notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: newEmergencyText, priority: newEmergencyPriority })
+      })
+      if (res.ok) {
+        const note = await res.json()
+        setEmergencyNotes([note, ...emergencyNotes])
+        setNewEmergencyText('')
+        toast.success('Emergency note added')
+      } else {
+        const e = await res.json()
+        toast.error(e.error || 'Error')
+      }
+    } catch {
+      toast.error('Failed to add note')
+    }
+  }
+
+  const deleteEmergencyNote = async (noteId: string) => {
+    if (!confirm('Delete this emergency note?')) return
+    try {
+      const res = await fetch(`/api/clients/${emergencyClient!.id}/emergency-notes?noteId=${noteId}`, { method: 'DELETE' })
+      if (res.ok) {
+        setEmergencyNotes(emergencyNotes.filter(n => n.id !== noteId))
+        toast.success('Note deleted')
+      }
+    } catch {
+      toast.error('Failed to delete note')
+    }
+  }
+
+  const toggleEmergencyDone = async (noteId: string, isDone: boolean) => {
+    try {
+      const res = await fetch(`/api/clients/${emergencyClient!.id}/emergency-notes`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ noteId, isDone })
+      })
+      if (res.ok) {
+        setEmergencyNotes(emergencyNotes.map(n => n.id === noteId ? { ...n, isDone } : n))
+        // also update the client in the list to reflect badge change if needed
+        setClients(prev => prev.map(cl => cl.id === emergencyClient!.id ? { ...cl, emergencyNotes: isDone ? cl.emergencyNotes.filter(en => en.id !== noteId) : [...cl.emergencyNotes, { id: noteId, isDone: false }] } : cl))
+      }
+    } catch {}
+  }
+
+  const clearCompletedEmergency = async () => {
+    const completed = emergencyNotes.filter(n => n.isDone)
+    if (completed.length === 0) return
+    if (!confirm(`Clear all ${completed.length} completed reminders?`)) return
+    
+    try {
+      for (const note of completed) {
+        await fetch(`/api/clients/${emergencyClient!.id}/emergency-notes?noteId=${note.id}`, { method: 'DELETE' })
+      }
+      setEmergencyNotes(emergencyNotes.filter(n => !n.isDone))
+      toast.success('Cleared completed reminders')
+    } catch {
+      toast.error('Failed to clear some reminders')
+    }
+  }
+
+  const sendSms = async () => {
     if (!smsClient || !smsText.trim()) return
     const targetPhone = selectedPhoneIndex === 0 ? smsClient.phone : smsClient.alternativePhone
     if (!targetPhone) return toast.error('Selected phone number is empty')
@@ -238,9 +333,9 @@ export default function ClientsPage() {
       const res = await fetch('/api/sms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          clientId: smsClient.id, 
-          phone: targetPhone, 
+        body: JSON.stringify({
+          clientId: smsClient.id,
+          phone: targetPhone,
           message: smsText,
           scheduledDateTime: formattedSchedule,
           type: smsLanguage === 'bangla' ? 'unicode' : 'text'
@@ -318,14 +413,11 @@ export default function ClientsPage() {
                 { label: 'Name / Shop' },
                 { label: 'Phone' },
                 { label: 'Market', tabletHide: true },
-                { label: 'Address' },
                 { label: 'Status' },
                 { label: 'Priority', mobileHide: true },
                 { label: 'Activity', mobileHide: true },
                 { label: 'Note' },
                 { label: 'Rating', tabletHide: true },
-                { label: 'Created By', tabletHide: true },
-                { label: 'Last Follow', mobileHide: true },
                 { label: 'Actions' }
               ].map((h, hi)=>(
                 <th key={h.label} className={`${h.tabletHide ? 'hide-tablet' : ''} ${h.mobileHide ? 'hide-mobile' : ''}`} style={{ padding:'16px', fontSize:'10px', color:'#9ca3af', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', textAlign: h.align==='center'?'center':'left', whiteSpace:'nowrap' }}>{h.label}</th>
@@ -335,9 +427,9 @@ export default function ClientsPage() {
           <tbody>
             {/* Rows */}
             {loading ? (
-              <tr><td colSpan={13} style={{ padding:'64px', textAlign:'center', color:'#9ca3af', fontWeight:500 }}>Loading dynamic data...</td></tr>
+              <tr><td colSpan={10} style={{ padding:'64px', textAlign:'center', color:'#9ca3af', fontWeight:500 }}>Loading dynamic data...</td></tr>
             ) : clients.length === 0 ? (
-              <tr><td colSpan={13} style={{ padding:'64px', textAlign:'center', color:'#9ca3af', fontWeight:500 }}>No clients found. Start by adding one!</td></tr>
+              <tr><td colSpan={10} style={{ padding:'64px', textAlign:'center', color:'#9ca3af', fontWeight:500 }}>No clients found. Start by adding one!</td></tr>
             ) : clients.map((c, i) => {
               const lastNote = c.clientNotes?.[0]
               return (
@@ -356,13 +448,9 @@ export default function ClientsPage() {
                   <td className="hide-tablet" style={{ padding:'16px', verticalAlign:'top' }}>
                     <div style={{ color:'#4f46e5', fontWeight:700, fontSize:'12px' }}>{c.market?.name || '—'}</div>
                   </td>
-                  <td style={{ padding:'16px', verticalAlign:'top', color:'#9ca3af', fontSize:'13px', maxWidth:'220px' }}>
-                    <div style={{ fontWeight:500, color:'#e2e8f0' }}>{c.district||''}{c.area ? `, ${c.area}` : ''}</div>
-                    {c.address && <div style={{ fontSize:'11px', color:'#6b7280', marginTop:'4px', lineHeight:'1.4', overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>{c.address}</div>}
-                  </td>
                   <td style={{ padding:'16px', verticalAlign:'top' }}>
-                    <select 
-                      value={c.status} 
+                    <select
+                      value={c.status}
                       onChange={async (e) => {
                         const val = e.target.value
                         const res = await fetch(`/api/clients/${c.id}`, { method:'PATCH', body:JSON.stringify({ status: val }) })
@@ -378,8 +466,8 @@ export default function ClientsPage() {
                     </select>
                   </td>
                   <td className="hide-mobile" style={{ padding:'16px', verticalAlign:'top' }}>
-                    <select 
-                      value={c.priority} 
+                    <select
+                      value={c.priority}
                       onChange={async (e) => {
                         const val = e.target.value
                         const res = await fetch(`/api/clients/${c.id}`, { method:'PATCH', body:JSON.stringify({ priority: val }) })
@@ -427,29 +515,38 @@ export default function ClientsPage() {
                   </td>
                   {/* Note — history count + latest snippet */}
                   <td style={{ padding:'16px', verticalAlign:'top' }}>
-                    <button onClick={()=>openView(c)}
-                      style={{ background:'none', border:'none', cursor:'pointer', textAlign:'left', padding:0 }}>
-                      {lastNote ? (
-                        <div>
-                          <div style={{ fontSize:'12px', color:'#e2e8f0', maxWidth:'200px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                            {lastNote.content}
+                    <div className="note-cell">
+                      <button onClick={()=>openView(c)}
+                        style={{ background:'none', border:'none', cursor:'pointer', textAlign:'left', padding:0 }}>
+                        {lastNote ? (
+                          <div>
+                            <div style={{ fontSize:'12px', color:'#e2e8f0', maxWidth:'200px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                              {lastNote.content}
+                            </div>
+                            <div style={{ fontSize:'10px', color:'#6b7280', marginTop:'2px' }}>
+                              {new Date(lastNote.createdAt).toLocaleDateString('en', {day:'2-digit',month:'short'})} · {(c.clientNotes?.length||0)} note{c.clientNotes?.length!==1?'s':''}
+                            </div>
+                            {/* Full Note Tooltip */}
+                            <div className="note-tooltip">
+                              <div style={{ fontWeight:700, color:'#818cf8', marginBottom:'4px', fontSize:'10px', textTransform:'uppercase' }}>Full Note History</div>
+                              <div style={{ maxHeight:'200px', overflowY:'auto', whiteSpace:'pre-wrap' }}>
+                                {lastNote.content}
+                              </div>
+                            </div>
                           </div>
-                          <div style={{ fontSize:'10px', color:'#6b7280', marginTop:'2px' }}>
-                            {new Date(lastNote.createdAt).toLocaleDateString('en', {day:'2-digit',month:'short'})} · {(c.clientNotes?.length||0)} note{c.clientNotes?.length!==1?'s':''}
-                          </div>
-                        </div>
-                      ) : (
-                        <span style={{ fontSize:'11px', color:'#4b5563' }}>No notes yet</span>
-                      )}
-                    </button>
+                        ) : (
+                          <span style={{ fontSize:'11px', color:'#4b5563' }}>No notes yet</span>
+                        )}
+                      </button>
+                    </div>
                   </td>
                   <td className="hide-tablet" style={{ padding:'16px', verticalAlign:'top' }}>
-                    <select 
-                      value={(c as any).rating || 0} 
+                    <select
+                      value={(c as any).rating || 0}
                       onChange={async (e) => {
                         const val = e.target.value
                         const res = await fetch(`/api/clients/${c.id}`, { method:'PATCH', body:JSON.stringify({ rating: val }) })
-                        if (res.ok) { 
+                        if (res.ok) {
                           setClients(prev => prev.map(cl => cl.id === c.id ? { ...cl, rating: parseInt(val) } : cl))
                           toast.success('Rating updated')
                         }
@@ -459,12 +556,16 @@ export default function ClientsPage() {
                       {[...Array(11)].map((_, r) => <option key={r} value={r} style={{ background:'#111827' }}>{r === 0 ? 'Rate' : r}</option>)}
                     </select>
                   </td>
-                  <td className="hide-tablet" style={{ padding:'16px', verticalAlign:'top', color:'#9ca3af', fontSize:'13px' }}>{c.createdBy?.name}</td>
-                  <td className="hide-mobile" style={{ padding:'16px', verticalAlign:'top', color:'#9ca3af', fontSize:'12px', whiteSpace:'nowrap' }}>
-                    {c.lastFollowUpAt ? new Date(c.lastFollowUpAt).toLocaleDateString() : '—'}
-                  </td>
                   <td style={{ padding:'16px', verticalAlign:'top' }}>
                     <div style={{ display:'flex', gap:'6px' }}>
+                      <button onClick={()=>openEmergencyModal(c)} title="Emergency Reminders" style={{ position:'relative', padding:'6px', background:'rgba(245,158,11,0.15)', border:'1px solid rgba(245,158,11,0.3)', borderRadius:'6px', color:'#f59e0b', cursor:'pointer' }}>
+                        <Bell size={14}/>
+                        {c.emergencyNotes?.length > 0 && (
+                          <span style={{ position:'absolute', top:'-6px', right:'-6px', minWidth:'16px', height:'16px', background:'#ef4444', borderRadius:'8px', border:'1.5px solid #0f172a', color:'white', fontSize:'9px', fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', padding:'0 3px', boxShadow:'0 2px 4px rgba(0,0,0,0.3)' }}>
+                            {c.emergencyNotes.length}
+                          </span>
+                        )}
+                      </button>
                       <button onClick={()=>openSmsModal(c)} title="Send SMS" style={{ padding:'6px', background:'rgba(16,185,129,0.15)', border:'1px solid rgba(16,185,129,0.3)', borderRadius:'6px', color:'#10b981', cursor:'pointer' }}><MessageCircle size={14}/></button>
                       <button onClick={()=>openView(c)} title="Log Activity / Notes" style={{ padding:'6px', background:'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.3)', borderRadius:'6px', color:'#818cf8', cursor:'pointer' }}><MessageSquare size={14}/></button>
                       <button onClick={()=>openEdit(c)} title="Edit Details" style={{ padding:'6px', background:'rgba(245,158,11,0.15)', border:'1px solid rgba(245,158,11,0.3)', borderRadius:'6px', color:'#fbbf24', cursor:'pointer' }}><Edit2 size={14}/></button>
@@ -509,12 +610,12 @@ export default function ClientsPage() {
               <Field label="Priority" name="priority" options={PRIORITIES} value={form.priority} onChange={handleFieldChange} />
               <Field label="Source" name="source" value={form.source} onChange={handleFieldChange} />
               <Field label="Facebook ID Link" name="facebookUrl" value={form.facebookUrl} onChange={handleFieldChange} />
-              
+
               {/* Market Searchable Dropdown */}
               <div ref={marketDropdownRef} style={{ display:'flex', flexDirection:'column', gap:'6px', position:'relative' }}>
                 <label style={{ fontSize:'11px', color:'#9ca3af', textTransform:'uppercase', fontWeight:600, letterSpacing:'0.05em' }}>Market</label>
                 <div style={{ position:'relative' }}>
-                  <input 
+                  <input
                     placeholder="Search or select market..."
                     value={marketSearch}
                     onChange={(e) => {
@@ -528,7 +629,7 @@ export default function ClientsPage() {
                   {showMarketList && (
                     <div style={{ position:'absolute', top:'100%', left:0, right:0, zIndex:100, background:'#111827', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'8px', marginTop:'4px', maxHeight:'240px', overflowY:'auto', boxShadow:'0 10px 15px -3px rgba(0,0,0,0.5)', padding:'4px' }}>
                       {markets.filter(m => m.name.toLowerCase().includes(marketSearch.toLowerCase())).map(m => (
-                        <div 
+                        <div
                           key={m.id}
                           style={{ padding:'8px 12px', cursor:'pointer', fontSize:'14px', color:'white', borderBottom:'1px solid rgba(255,255,255,0.05)', display:'flex', alignItems:'center', justifyContent:'space-between', borderRadius:'6px' }}
                           onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
@@ -536,14 +637,14 @@ export default function ClientsPage() {
                         >
                           {editingMarketId === m.id ? (
                             <div style={{ display:'flex', gap:'4px', flex:1 }}>
-                              <input 
+                              <input
                                 autoFocus
                                 value={editingMarketName}
                                 onChange={e => setEditingMarketName(e.target.value)}
                                 onClick={e => e.stopPropagation()}
                                 style={{ flex:1, background:'rgba(0,0,0,0.4)', border:'1px solid var(--primary)', color:'white', borderRadius:'4px', padding:'2px 6px', fontSize:'13px' }}
                               />
-                              <button 
+                              <button
                                 onClick={async (e) => {
                                   e.stopPropagation()
                                   if (!editingMarketName.trim()) return
@@ -570,8 +671,8 @@ export default function ClientsPage() {
                               {userRole === 'SUPER_ADMIN' && (
                                 <div style={{ display:'flex', gap:'8px', opacity:0.6 }}>
                                   <Edit2 size={12} onClick={(e) => { e.stopPropagation(); setEditingMarketId(m.id); setEditingMarketName(m.name) }} style={{ cursor:'pointer' }} />
-                                  <Trash2 size={12} onClick={async (e) => { 
-                                    e.stopPropagation(); 
+                                  <Trash2 size={12} onClick={async (e) => {
+                                    e.stopPropagation();
                                     if(!confirm(`Delete market "${m.name}"?`)) return;
                                     const res = await fetch(`/api/markets/${m.id}`, { method:'DELETE' })
                                     if(res.ok) {
@@ -591,7 +692,7 @@ export default function ClientsPage() {
                       {marketSearch && !markets.find(m => m.name.toLowerCase() === marketSearch.toLowerCase()) && (
                         <div style={{ padding:'10px 12px', fontSize:'14px' }}>
                           {userRole === 'SUPER_ADMIN' ? (
-                            <button 
+                            <button
                               onClick={async () => {
                                 setAddingMarket(true)
                                 try {
@@ -641,7 +742,7 @@ export default function ClientsPage() {
       {showSmsModal && smsClient && (
         <div className="modal-overlay" onClick={()=>setShowSmsModal(false)}>
           <div className="sms-modal-inner" onClick={e=>e.stopPropagation()} style={{ background:'linear-gradient(135deg, rgba(30,27,75,0.9), rgba(17,24,39,0.95))', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', border:'1px solid rgba(16,185,129,0.3)', boxShadow:'0 25px 50px -12px rgba(0,0,0,0.6)', borderRadius:'20px', width:'100%', maxWidth:'850px', display:'flex', overflow:'hidden' }}>
-            
+
             {/* Left Side: Client Details */}
             <div className="sms-modal-left" style={{ flex:1, padding:'32px', background:'rgba(0,0,0,0.2)', borderRight:'1px solid rgba(255,255,255,0.05)' }}>
               <h2 style={{ color:'white', fontSize:'18px', fontWeight:700, marginBottom:'24px', display:'flex', alignItems:'center', gap:'10px' }}>
@@ -728,12 +829,12 @@ export default function ClientsPage() {
               {/* Schedule Selection */}
               <div style={{ marginBottom:'20px' }}>
                 <label style={{ fontSize:'11px', color:'#9ca3af', textTransform:'uppercase', fontWeight:600, letterSpacing:'0.05em', display:'block', marginBottom:'8px' }}>Schedule (Optional)</label>
-                <input 
-                  type="datetime-local" 
-                  value={smsScheduledTime} 
-                  onChange={e => setSmsScheduledTime(e.target.value)} 
-                  className="input-field" 
-                  style={{ width:'100%', fontSize:'14px', padding:'12px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'10px', color:'white', colorScheme: 'dark' }} 
+                <input
+                  type="datetime-local"
+                  value={smsScheduledTime}
+                  onChange={e => setSmsScheduledTime(e.target.value)}
+                  className="input-field"
+                  style={{ width:'100%', fontSize:'14px', padding:'12px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'10px', color:'white', colorScheme: 'dark' }}
                 />
                 <div style={{ fontSize:'11px', color:'#6b7280', marginTop:'4px' }}>Leave empty to send immediately.</div>
               </div>
@@ -742,14 +843,14 @@ export default function ClientsPage() {
               <div style={{ marginBottom:'20px' }}>
                 <label style={{ fontSize:'11px', color:'#9ca3af', textTransform:'uppercase', fontWeight:600, letterSpacing:'0.05em', display:'block', marginBottom:'8px' }}>Language</label>
                 <div style={{ display:'flex', gap:'10px' }}>
-                  <button 
+                  <button
                     onClick={() => setSmsLanguage('english')}
                     style={{ flex:1, padding:'8px', borderRadius:'8px', fontSize:'12px', fontWeight:600, border:'1px solid', cursor:'pointer', transition:'all 0.2s',
                       borderColor: smsLanguage === 'english' ? '#10b981' : 'rgba(255,255,255,0.1)',
                       background: smsLanguage === 'english' ? 'rgba(16,185,129,0.1)' : 'transparent',
                       color: smsLanguage === 'english' ? '#10b981' : '#9ca3af' }}
                   >English (160 Chars)</button>
-                  <button 
+                  <button
                     onClick={() => setSmsLanguage('bangla')}
                     style={{ flex:1, padding:'8px', borderRadius:'8px', fontSize:'12px', fontWeight:600, border:'1px solid', cursor:'pointer', transition:'all 0.2s',
                       borderColor: smsLanguage === 'bangla' ? '#10b981' : 'rgba(255,255,255,0.1)',
@@ -762,24 +863,213 @@ export default function ClientsPage() {
               {/* Message Box */}
               <div style={{ flex:1, display:'flex', flexDirection:'column' }}>
                 <label style={{ fontSize:'11px', color:'#9ca3af', textTransform:'uppercase', fontWeight:600, letterSpacing:'0.05em', display:'block', marginBottom:'8px' }}>Message Content</label>
-                <textarea 
-                  value={smsText} 
-                  onChange={e=>setSmsText(e.target.value)} 
-                  placeholder="Write your SMS message here..." 
-                  className="input-field" 
-                  style={{ flex:1, minHeight:'120px', fontSize:'14px', padding:'16px', resize:'none', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:'12px', color:'white' }} 
+                <textarea
+                  value={smsText}
+                  onChange={e=>setSmsText(e.target.value)}
+                  placeholder="Write your SMS message here..."
+                  className="input-field"
+                  style={{ flex:1, minHeight:'120px', fontSize:'14px', padding:'16px', resize:'none', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:'12px', color:'white' }}
                 />
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:'8px' }}>
                   <span style={{ fontSize:'12px', color: smsText.length > (smsLanguage === 'english' ? 160 : 70) ? '#f59e0b' : '#9ca3af' }}>
                     {smsText.length} / {smsLanguage === 'english' ? 160 : 70} chars (approx. {Math.max(1, Math.ceil(smsText.length/(smsLanguage === 'english' ? 160 : 70)))} segment{Math.ceil(smsText.length/(smsLanguage === 'english' ? 160 : 70))>1?'s':''})
                   </span>
-                  <button onClick={handleSendSms} disabled={sendingSms || !smsText.trim()} style={{ padding:'12px 24px', background:'#10b981', color:'white', border:'none', borderRadius:'8px', fontWeight:700, cursor: sendingSms||!smsText.trim() ? 'not-allowed' : 'pointer', opacity: sendingSms||!smsText.trim() ? 0.6 : 1, display:'flex', alignItems:'center', gap:'8px', boxShadow:'0 4px 14px 0 rgba(16,185,129,0.39)' }}>
+                  <button onClick={sendSms} disabled={sendingSms || !smsText.trim()} style={{ padding:'12px 24px', background:'#10b981', color:'white', border:'none', borderRadius:'8px', fontWeight:700, cursor: sendingSms||!smsText.trim() ? 'not-allowed' : 'pointer', opacity: sendingSms||!smsText.trim() ? 0.6 : 1, display:'flex', alignItems:'center', gap:'8px', boxShadow:'0 4px 14px 0 rgba(16,185,129,0.39)' }}>
                     {sendingSms ? 'Sending...' : smsScheduledTime ? 'Schedule Message' : 'Send Now'} <MessageCircle size={16} />
                   </button>
                 </div>
               </div>
             </div>
 
+          </div>
+        </div>
+      )}
+      {/* Emergency Notes Modal */}
+      {showEmergencyModal && emergencyClient && (
+        <div className="modal-overlay" onClick={()=>setShowEmergencyModal(false)} style={{ backdropFilter:'blur(25px)', background:'rgba(0,0,0,0.6)' }}>
+          <div className="glass-panel" onClick={e=>e.stopPropagation()} 
+            style={{ 
+              width:'95%', maxWidth:'1200px', height:'auto', maxHeight:'90vh', padding:'0', position:'relative', 
+              border:'1px solid rgba(255,255,255,0.1)', animation:'modalIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)',
+              background:'rgba(15, 23, 42, 0.95)', boxShadow:'0 50px 100px -20px rgba(0,0,0,0.7), 0 0 60px rgba(245,158,11,0.05)',
+              overflow:'hidden', display:'flex', flexDirection:'column', borderRadius:'32px'
+            }}>
+            
+            {/* Header (Full Width) */}
+            <div style={{ padding:'28px 40px', borderBottom:'1px solid rgba(255,255,255,0.08)', display:'flex', justifyContent:'space-between', alignItems:'center', background:'rgba(0,0,0,0.3)', position:'sticky', top:0, zIndex:20 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:'20px' }}>
+                <div style={{ padding:'12px', borderRadius:'16px', background:'linear-gradient(135deg, #f59e0b, #d97706)', color:'white', boxShadow:'0 10px 20px -5px rgba(245,158,11,0.5)', display:'flex', alignItems:'center', justifyContent:'center' }}><Bell size={26}/></div>
+                <div>
+                  <h2 style={{ fontSize:'24px', fontWeight:900, color:'white', letterSpacing:'-0.03em', marginBottom:'2px' }}>Emergency Workboard</h2>
+                  <div style={{ display:'flex', alignItems:'center', gap:'10px', color:'#9ca3af', fontSize:'13px', fontWeight:500 }}>
+                     <span style={{ color:'#f59e0b', fontWeight:700 }}>{emergencyClient.name}</span>
+                     <span style={{ opacity:0.3 }}>•</span>
+                     <span style={{ background:'rgba(255,255,255,0.05)', padding:'2px 8px', borderRadius:'6px', fontSize:'12px' }}>{emergencyClient.phone}</span>
+                  </div>
+                </div>
+              </div>
+              <button onClick={()=>setShowEmergencyModal(false)} style={{ background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'#9ca3af', cursor:'pointer', width:'36px', height:'36px', borderRadius:'12px', display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.2s' }} onMouseEnter={e=>e.currentTarget.style.borderColor='#ef4444'} onMouseLeave={e=>e.currentTarget.style.borderColor='rgba(255,255,255,0.1)'}><X size={20}/></button>
+            </div>
+
+            {/* Main Content Area (Two Columns) */}
+            <div style={{ display:'flex', flex:1, overflow:'hidden' }}>
+              
+              {/* Left Column: Form & Analytics */}
+              <div style={{ flex:'0 0 420px', padding:'40px', borderRight:'1px solid rgba(255,255,255,0.08)', background:'rgba(0,0,0,0.2)', overflowY:'auto', scrollbarWidth:'none' }}>
+                
+                {/* Resolution Intelligence Card */}
+                {emergencyNotes.length > 0 && (
+                  <div style={{ marginBottom:'40px', background:'rgba(15, 23, 42, 0.4)', padding:'24px', borderRadius:'24px', border:'1px solid rgba(255,255,255,0.08)', boxShadow:'0 10px 30px rgba(0,0,0,0.3)' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', fontSize:'12px', color:'#94a3b8', marginBottom:'12px', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.05em' }}>
+                      <span>Resolved Tasks</span>
+                      <span style={{ color:'#f59e0b' }}>{Math.round((emergencyNotes.filter(n=>n.isDone).length / emergencyNotes.length) * 100)}%</span>
+                    </div>
+                    <div style={{ width:'100%', height:'8px', background:'rgba(0,0,0,0.5)', borderRadius:'10px', overflow:'hidden', border:'1px solid rgba(255,255,255,0.05)' }}>
+                      <div style={{ width: `${(emergencyNotes.filter(n=>n.isDone).length / emergencyNotes.length) * 100}%`, height:'100%', background:'linear-gradient(to right, #f59e0b, #fbbf24)', transition:'width 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)', boxShadow:'0 0 15px rgba(245,158,11,0.4)' }} />
+                    </div>
+                    <div style={{ marginTop:'16px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
+                       <div style={{ background:'rgba(255,255,255,0.02)', padding:'10px', borderRadius:'12px', textAlign:'center', border:'1px solid rgba(255,255,255,0.03)' }}>
+                          <div style={{ fontSize:'18px', fontWeight:900, color:'white' }}>{emergencyNotes.filter(n=>!n.isDone).length}</div>
+                          <div style={{ fontSize:'10px', color:'#6b7280', textTransform:'uppercase', fontWeight:700 }}>Pending</div>
+                       </div>
+                       <div style={{ background:'rgba(255,255,255,0.02)', padding:'10px', borderRadius:'12px', textAlign:'center', border:'1px solid rgba(255,255,255,0.03)' }}>
+                          <div style={{ fontSize:'18px', fontWeight:900, color:'#10b981' }}>{emergencyNotes.filter(n=>n.isDone).length}</div>
+                          <div style={{ fontSize:'10px', color:'#6b7280', textTransform:'uppercase', fontWeight:700 }}>Cleared</div>
+                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Create Note Section */}
+                {(userRole === 'SUPER_ADMIN' || userPermissions.includes('emergency_notes')) ? (
+                  <div style={{ padding:'28px', borderRadius:'32px', background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.08)', boxShadow:'inset 0 2px 20px rgba(0,0,0,0.3)' }}>
+                    <label style={{ fontSize:'11px', color:'#6b7280', textTransform:'uppercase', fontWeight:900, display:'block', marginBottom:'20px', letterSpacing:'0.1em' }}>New Emergency Sticky</label>
+                    
+                    <div style={{ display:'flex', gap:'8px', marginBottom:'24px' }}>
+                      {PRIORITIES.map(p => (
+                        <button key={p} onClick={()=>setNewEmergencyPriority(p)}
+                          style={{ flex:1, padding:'10px', borderRadius:'12px', fontSize:'11px', fontWeight:900, border:'2px solid', cursor:'pointer', transition:'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                            borderColor: newEmergencyPriority===p ? PRIORITY_COLORS[p] : 'transparent',
+                            background: newEmergencyPriority===p ? PRIORITY_COLORS[p]+'15' : 'rgba(255,255,255,0.03)',
+                            color: newEmergencyPriority===p ? 'white' : '#4b5563',
+                            transform: newEmergencyPriority===p ? 'translateY(-2px)' : 'none',
+                            boxShadow: newEmergencyPriority===p ? `0 8px 16px ${PRIORITY_COLORS[p]}33` : 'none' }}>{p}</button>
+                      ))}
+                    </div>
+
+                    <textarea 
+                      value={newEmergencyText} onChange={e=>setNewEmergencyText(e.target.value)}
+                      placeholder="Describe the emergency request..."
+                      style={{ width:'100%', minHeight:'140px', background:'rgba(0,0,0,0.4)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'20px', color:'white', fontSize:'15px', padding:'20px', resize:'none', marginBottom:'24px', outline:'none', transition:'all 0.2s', lineHeight:1.6 }}
+                      onFocus={e=>e.currentTarget.style.borderColor='rgba(245,158,11,0.5)'}
+                      onBlur={e=>e.currentTarget.style.borderColor='rgba(255,255,255,0.1)'}
+                    />
+                    
+                    <button onClick={addEmergencyNote} className="btn-glow" style={{ width:'100%', padding:'18px', background:'linear-gradient(135deg, #f59e0b, #d97706)', border:'none', color:'white', fontWeight:900, fontSize:'16px', borderRadius:'20px', boxShadow:'0 15px 30px -8px rgba(217,119,6,0.5)', cursor:'pointer', transition:'all 0.2s' }}>Post Sticky Reminder</button>
+                  </div>
+                ) : (
+                  <div style={{ textAlign:'center', padding:'60px 40px', background:'rgba(255,255,255,0.01)', borderRadius:'32px', border:'1px dashed rgba(255,255,255,0.05)' }}>
+                    <ShieldCheck size={48} style={{ color:'#4b5563', marginBottom:'16px', opacity:0.5 }} />
+                    <p style={{ fontSize:'14px', color:'#6b7280', fontWeight:600 }}>Action restricted to administrators.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column: Live Stream */}
+              <div style={{ flex:1, display:'flex', flexDirection:'column', background:'rgba(0,0,0,0.05)', overflow:'hidden' }}>
+                <div style={{ padding:'32px 48px 24px 48px', display:'flex', justifyContent:'space-between', alignItems:'center', background:'rgba(0,0,0,0.1)', borderBottom:'1px solid rgba(255,255,255,0.03)' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
+                    <h3 style={{ fontSize:'14px', fontWeight:900, color:'white', textTransform:'uppercase', letterSpacing:'0.15em' }}>Work Stream</h3>
+                    <span style={{ padding:'2px 8px', borderRadius:'6px', background:'rgba(245,158,11,0.15)', color:'#f59e0b', fontSize:'11px', fontWeight:900 }}>{emergencyNotes.length}</span>
+                  </div>
+                  {emergencyNotes.some(n=>n.isDone) && (userRole === 'SUPER_ADMIN' || userPermissions.includes('emergency_notes')) && (
+                    <button onClick={clearCompletedEmergency} style={{ background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.2)', color:'#ef4444', padding:'6px 14px', borderRadius:'8px', fontSize:'11px', fontWeight:900, cursor:'pointer', transition:'all 0.2s' }} onMouseEnter={e=>e.currentTarget.style.background='rgba(239,68,68,0.2)'} onMouseLeave={e=>e.currentTarget.style.background='rgba(239,68,68,0.1)'}>Batch Clear Resolved</button>
+                  )}
+                </div>
+
+                <div style={{ flex:1, overflowY:'auto', padding:'24px 48px 48px 48px', display:'flex', flexDirection:'column', gap:'16px' }}>
+                  {isEmergencyLoading ? (
+                    <div style={{ textAlign:'center', padding:'100px' }}>
+                       <RefreshCw className="spin" size={36} style={{ color:'#f59e0b', opacity:0.4 }} />
+                    </div>
+                  ) : emergencyNotes.length === 0 ? (
+                    <div style={{ textAlign:'center', padding:'120px 40px', opacity:0.2 }}>
+                      <Bell size={64} style={{ marginBottom:'20px' }}/>
+                      <p style={{ fontSize:'18px', fontWeight:800 }}>Clean Stream</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Priority Legend / Filter (Visual Only) */}
+                      <div style={{ display:'flex', gap:'20px', marginBottom:'8px', opacity:0.6 }}>
+                        {PRIORITIES.map(p => (
+                          <div key={p} style={{ display:'flex', alignItems:'center', gap:'6px', fontSize:'10px', fontWeight:800, color:'#94a3b8' }}>
+                            <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:PRIORITY_COLORS[p] }} /> {p}
+                          </div>
+                        ))}
+                      </div>
+
+                      {emergencyNotes.map((note, idx) => {
+                        const canAdd = userRole === 'SUPER_ADMIN' || userPermissions.includes('emergency_notes')
+                        const pCol = PRIORITY_COLORS[note.priority]
+                        return (
+                        <div key={note.id} className="anim-row"
+                          style={{ 
+                            animationDelay: `${idx * 0.05}s`,
+                            padding:'24px', borderRadius:'24px', 
+                            background: note.isDone ? 'rgba(255,255,255,0.01)' : 'rgba(255,255,255,0.04)', 
+                            border:'1px solid',
+                            borderColor: note.isDone ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.1)',
+                            borderLeft:`6px solid ${note.isDone ? '#334155' : pCol}`, 
+                            position:'relative', transition:'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                            opacity: note.isDone ? 0.35 : 1,
+                            transform: note.isDone ? 'scale(0.98)' : 'none',
+                            boxShadow: note.isDone ? 'none' : `0 10px 30px -10px ${pCol}11`
+                          }}>
+                          
+                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'16px' }}>
+                            <div style={{ display:'flex', alignItems:'center', gap:'16px' }}>
+                              <input 
+                                type="checkbox" 
+                                checked={note.isDone} 
+                                disabled={note.isDone && !canAdd} 
+                                onChange={(e)=>toggleEmergencyDone(note.id, e.target.checked)}
+                                style={{ width:'24px', height:'24px', cursor:'pointer', accentColor:'#f59e0b', filter: note.isDone ? 'grayscale(1)' : 'none' }} 
+                              />
+                              <span style={{ padding:'4px 10px', borderRadius:'6px', background:pCol+'22', color:pCol, fontSize:'10px', fontWeight:900, textTransform:'uppercase', letterSpacing:'0.1em', border:`1px solid ${pCol}33` }}>
+                                {note.priority}
+                              </span>
+                            </div>
+                            <div style={{ textAlign:'right' }}>
+                              <div style={{ fontSize:'12px', color:'white', fontWeight:700 }}>{new Date(note.createdAt).toLocaleDateString('en',{day:'2-digit',month:'short'})}</div>
+                              <div style={{ fontSize:'10px', color:'#4b5563', fontWeight:600 }}>{new Date(note.createdAt).toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit'})}</div>
+                            </div>
+                          </div>
+                          
+                          <p style={{ fontSize:'15px', color:'#f8fafc', whiteSpace:'pre-wrap', lineHeight:1.7, textDecoration: note.isDone ? 'line-through' : 'none', marginBottom:'20px', fontWeight:500 }}>
+                            {note.content}
+                          </p>
+                          
+                          <div style={{ borderTop:'1px solid rgba(255,255,255,0.05)', paddingTop:'16px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                            <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
+                               <div style={{ width:'28px', height:'28px', borderRadius:'50%', background:'rgba(255,255,255,0.1)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'12px', fontWeight:800, color:'#9ca3af' }}>{note.author.name.charAt(0)}</div>
+                               <div style={{ display:'flex', flexDirection:'column' }}>
+                                  <span style={{ fontSize:'11px', color:'#94a3b8', fontWeight:700 }}>{note.author.name}</span>
+                                  {note.isDone && note.doneBy && (
+                                    <span style={{ fontSize:'10px', color:'#10b981', fontWeight:800, display:'flex', alignItems:'center', gap:'4px' }}>✓ Resolved by {note.doneBy.name}</span>
+                                  )}
+                               </div>
+                            </div>
+                            {(userRole === 'SUPER_ADMIN' || note.authorId === currentUserId) && (
+                              <button onClick={()=>deleteEmergencyNote(note.id)} style={{ background:'transparent', border:'none', color:'#4b5563', cursor:'pointer', fontSize:'11px', fontWeight:800, transition:'all 0.2s' }} onMouseEnter={e=>e.currentTarget.style.color='#ef4444'} onMouseLeave={e=>e.currentTarget.style.color='#4b5563'}><Trash2 size={16}/></button>
+                            )}
+                          </div>
+                        </div>
+                      )})}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -268,6 +268,46 @@ td {
 .hover-lift:hover { transform: translateY(-2px); transition: transform 0.2s ease; }
 .bg-blob { position: absolute; filter: blur(120px); opacity: 0.15; z-index: -1; border-radius: 50%; pointer-events: none; animation: blobFloat 15s infinite ease-in-out alternate; }
 
+/* Tooltip for Table Notes */
+.note-cell {
+  position: relative;
+  cursor: help;
+}
+
+.note-tooltip {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 300px;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 12px;
+  border-radius: 10px;
+  color: #e2e8f0;
+  font-size: 12px;
+  line-height: 1.5;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  z-index: 100;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s ease;
+  pointer-events: none;
+  margin-top: 8px;
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(20px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.note-cell:hover .note-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(5px);
+}
+
+
 /* ==================== RESPONSIVE ==================== */
 
 /* Sidebar overlay for mobile */

@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
         assignedTo: { select: { id: true, name: true } },
         market:     true,
         clientNotes: { orderBy: { createdAt: 'desc' }, take: 1 },
+        emergencyNotes: { where: { isDone: false } },
       },
     }),
     prisma.client.count({ where }),

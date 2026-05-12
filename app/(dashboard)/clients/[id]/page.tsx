@@ -6,12 +6,12 @@ import toast from 'react-hot-toast'
 
 const STATUS_COLORS: Record<string, string> = {
   PROSPECT:    '#6366f1', CONTACTED: '#0ea5e9', INTERESTED: '#f59e0b',
-  NEGOTIATING: '#8b5cf6', CONVERTED:  '#10b981', LOST:       '#ef4444', INACTIVE: '#6b7280',
+  NEGOTIATING: '#8b5cf6', CLIENTS:  '#10b981', LOST:       '#ef4444', INACTIVE: '#6b7280',
 }
 const NOTE_TYPE_COLORS: Record<string, string> = {
   GENERAL:'#6366f1', CALL:'#0ea5e9', VISIT:'#10b981', FOLLOW_UP:'#f59e0b', COMPLAINT:'#ef4444', SMS:'#ec4899'
 }
-const STATUSES = ['PROSPECT','CONTACTED','INTERESTED','NEGOTIATING','CONVERTED','LOST','INACTIVE']
+const STATUSES = ['PROSPECT','CONTACTED','INTERESTED','NEGOTIATING','CLIENTS','LOST','INACTIVE']
 const NOTE_TYPES = ['GENERAL','CALL','VISIT','FOLLOW_UP','COMPLAINT', 'SMS']
 
 export default function ClientDetailsPage() {
