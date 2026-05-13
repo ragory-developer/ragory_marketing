@@ -3,8 +3,9 @@ import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const token = cookies().get('auth_token')?.value
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const token = (await cookies()).get('auth_token')?.value
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const payload = await verifyToken(token) as any
   if (!payload || payload.role !== 'SUPER_ADMIN') {
@@ -16,7 +17,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   try {
     const market = await prisma.market.update({
-      where: { id: params.id },
+      where: { id },
       data: { name: name.trim() }
     })
     return NextResponse.json(market)
@@ -26,8 +27,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-  const token = cookies().get('auth_token')?.value
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const token = (await cookies()).get('auth_token')?.value
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const payload = await verifyToken(token) as any
   if (!payload || payload.role !== 'SUPER_ADMIN') {
@@ -36,12 +38,12 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 
   try {
     // Check if market is used by any clients
-    const count = await prisma.client.count({ where: { marketId: params.id } })
+    const count = await prisma.client.count({ where: { marketId: id } })
     if (count > 0) {
       return NextResponse.json({ error: 'Cannot delete: This market is assigned to clients' }, { status: 400 })
     }
 
-    await prisma.market.delete({ where: { id: params.id } })
+    await prisma.market.delete({ where: { id } })
     return NextResponse.json({ success: true })
   } catch (error) {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })

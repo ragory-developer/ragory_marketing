@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import * as bcrypt from 'bcryptjs'
-import { signToken } from '@/lib/auth'
+import { signToken as createToken } from '@/lib/auth'
 import { cookies } from 'next/headers'
 
 export async function POST(req: Request) {
@@ -26,18 +26,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
     }
 
-    const tokenPayload = {
+    // Set cookie
+    const t = await createToken({
       userId: user.id,
       role: user.role,
       permissions: user.permissions.map(p => p.navKey)
-    }
+    });
 
-    const token = await signToken(tokenPayload)
-
-    // Set cookie
-    cookies().set({
+    (await cookies()).set({
       name: 'auth_token',
-      value: token,
+      value: t,
       httpOnly: true,
       path: '/',
       secure: process.env.NODE_ENV === 'production',
@@ -50,7 +48,7 @@ export async function POST(req: Request) {
         name: user.name,
         username: user.username,
         role: user.role,
-        permissions: tokenPayload.permissions
+        permissions: user.permissions.map(p => p.navKey)
       }
     })
   } catch (error) {

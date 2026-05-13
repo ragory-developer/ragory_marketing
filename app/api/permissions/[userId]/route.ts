@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 
-export async function GET(req: Request, { params }: { params: { userId: string } }) {
+export async function GET(req: Request, { params }: { params: Promise<{ userId: string }> }) {
   try {
-    const { userId } = params
+    const { userId } = await params
     const permissions = await prisma.permission.findMany({
       where: { userId }
     })
@@ -13,9 +13,9 @@ export async function GET(req: Request, { params }: { params: { userId: string }
   }
 }
 
-export async function PUT(req: Request, { params }: { params: { userId: string } }) {
+export async function PUT(req: Request, { params }: { params: Promise<{ userId: string }> }) {
   try {
-    const { userId } = params
+    const { userId } = await params
     const { permissions } = await req.json() // Array of navKeys e.g. ['dashboard', 'employees']
 
     // Clear existing

@@ -11,7 +11,7 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const token = cookies().get('auth_token')?.value
+  const token = (await cookies()).get('auth_token')?.value
   if (!token) redirect('/login')
 
   const payload = await verifyToken(token)

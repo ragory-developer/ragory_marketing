@@ -4,16 +4,17 @@ import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
 
 async function getUserId() {
-  const token = cookies().get('auth_token')?.value
+  const token = (await cookies()).get('auth_token')?.value
   const decoded = token ? await verifyToken(token) : null
   return decoded?.userId as string | null
 }
 
 // GET single sheet with all cells
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   try {
     const sheet = await prisma.googleSheet.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         cells: true,
         creator: { select: { name: true } },
@@ -29,16 +30,17 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 }
 
 // POST append row data (legacy, disabled for now)
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   try {
     const { values } = await req.json()
     const userId = await getUserId()
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const sheetRecord = await prisma.googleSheet.findUnique({ where: { id: params.id } })
+    const sheetRecord = await prisma.googleSheet.findUnique({ where: { id } })
     if (!sheetRecord) return NextResponse.json({ error: 'Not found in DB' }, { status: 404 })
 
-    await prisma.googleSheet.update({ where: { id: params.id }, data: { updatedBy: userId } })
+    await prisma.googleSheet.update({ where: { id }, data: { updatedBy: userId } })
     return NextResponse.json({ success: true })
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed' }, { status: 500 })
@@ -46,12 +48,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 }
 
 // DELETE soft-delete sheet
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   try {
     const userId = await getUserId()
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     await prisma.googleSheet.update({
-      where: { id: params.id },
+      where: { id },
       data: { isDeleted: true, deletedBy: userId }
     })
     return NextResponse.json({ success: true })

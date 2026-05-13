@@ -5,7 +5,7 @@ import prisma from '@/lib/prisma'
 import { NoteType } from '@prisma/client'
 
 export async function POST(req: NextRequest) {
-  const token = cookies().get('auth_token')?.value
+  const token = (await cookies()).get('auth_token')?.value
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const payload = await verifyToken(token) as any
   if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

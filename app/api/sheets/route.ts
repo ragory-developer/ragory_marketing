@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     const { name } = await req.json()
     if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 })
 
-    const token = cookies().get('auth_token')?.value
+    const token = (await cookies()).get('auth_token')?.value
     const decoded = token ? await verifyToken(token) : null
     const userId = decoded?.userId as string
 

@@ -3,14 +3,15 @@ import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 
-export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
-  const token = cookies().get('auth_token')?.value
+export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const token = (await cookies()).get('auth_token')?.value
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const payload = await verifyToken(token)
   if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const notes = await prisma.emergencyNote.findMany({
-    where: { clientId: params.id },
+    where: { clientId: id },
     include: { 
       author: { select: { id: true, name: true } },
       doneBy: { select: { id: true, name: true } }
@@ -20,8 +21,9 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   return NextResponse.json(notes)
 }
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const token = cookies().get('auth_token')?.value
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const token = (await cookies()).get('auth_token')?.value
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const payload = await verifyToken(token) as any
   if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -36,7 +38,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const note = await prisma.emergencyNote.create({
     data: {
-      clientId: params.id,
+      clientId: id,
       content,
       priority: priority || 'MEDIUM',
       authorId: payload.userId
@@ -46,8 +48,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   return NextResponse.json(note)
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-  const token = cookies().get('auth_token')?.value
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const token = (await cookies()).get('auth_token')?.value
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const payload = await verifyToken(token) as any
   if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -68,8 +71,9 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   return NextResponse.json({ success: true })
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const token = cookies().get('auth_token')?.value
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const token = (await cookies()).get('auth_token')?.value
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const payload = await verifyToken(token) as any
   if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

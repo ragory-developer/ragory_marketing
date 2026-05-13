@@ -3,8 +3,9 @@ import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const token = cookies().get('auth_token')?.value
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const token = (await cookies()).get('auth_token')?.value
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const payload = await verifyToken(token) as any
   if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const note = await prisma.clientNote.create({
     data: {
-      clientId: params.id,
+      clientId: id,
       authorId: payload.userId,
       content,
       type: type || 'GENERAL',
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   // Update last follow-up date on the client
   await prisma.client.update({
-    where: { id: params.id },
+    where: { id },
     data: { lastFollowUpAt: new Date() },
   })
 

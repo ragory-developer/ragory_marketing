@@ -5,7 +5,7 @@ import prisma from '@/lib/prisma'
 
 
 export async function GET() {
-  const token = cookies().get('auth_token')?.value
+  const token = (await cookies()).get('auth_token')?.value
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const payload = await verifyToken(token) as any

@@ -6,7 +6,7 @@ import { verifyToken } from '@/lib/auth'
 // PATCH — upsert a single cell (value + formatting)
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {
-    const token = cookies().get('auth_token')?.value
+    const token = (await cookies()).get('auth_token')?.value
     const decoded = token ? await verifyToken(token) : null
     const userId = decoded?.userId as string
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

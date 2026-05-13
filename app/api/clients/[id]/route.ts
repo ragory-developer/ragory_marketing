@@ -19,19 +19,21 @@ async function getClient(id: string) {
   })
 }
 
-export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
-  const token = cookies().get('auth_token')?.value
+export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const token = (await cookies()).get('auth_token')?.value
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const payload = await verifyToken(token)
   if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const client = await getClient(params.id)
+  const client = await getClient(id)
   if (!client) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json(client)
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const token = cookies().get('auth_token')?.value
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const token = (await cookies()).get('auth_token')?.value
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const payload = await verifyToken(token)
   if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -39,7 +41,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const body = await req.json()
   const { name, phone, shopName, address, alternativePhone, email, businessType, district, area, status, priority, source, notes, assignedToId, nextFollowUpAt, rating, marketId, facebookUrl } = body
 
-  const current = await prisma.client.findUnique({ where: { id: params.id } })
+  const current = await prisma.client.findUnique({ where: { id } })
   if (!current) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // Detect changes for history tracking
@@ -52,7 +54,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const client = await prisma.client.update({
-    where: { id: params.id },
+    where: { id },
     data: {
       ...(name              !== undefined && { name }),
       ...(phone             !== undefined && { phone }),
@@ -80,13 +82,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   return NextResponse.json(client)
 }
 
-export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
-  const token = cookies().get('auth_token')?.value
+export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const token = (await cookies()).get('auth_token')?.value
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const payload = await verifyToken(token) as any
   if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (payload.role !== 'SUPER_ADMIN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  await prisma.client.delete({ where: { id: params.id } })
+  await prisma.client.delete({ where: { id } })
   return NextResponse.json({ success: true })
 }
