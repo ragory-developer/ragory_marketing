@@ -1,57 +1,49 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { getAuthPayload } from '@/lib/auth'
 import prisma from '@/lib/prisma'
-import { cookies } from 'next/headers'
-import { verifyToken } from '@/lib/auth'
 
-// PATCH — upsert a single cell (value + formatting)
-export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  try {
-    const token = (await cookies()).get('auth_token')?.value
-    const decoded = token ? await verifyToken(token) : null
-    const userId = decoded?.userId as string
-    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+type Params = { params: Promise<{ id: string }> }
 
-    const body = await req.json()
-    const { row, col, value, bold, italic, fillColor, textColor, align, wrap, format } = body
+export async function PATCH(req: NextRequest, { params }: Params) {
+  const { payload, error } = await getAuthPayload()
+  if (error) return error
+  const { id } = await params
 
-    if (row === undefined || col === undefined) {
-      return NextResponse.json({ error: 'row and col are required' }, { status: 400 })
-    }
+  const body = await req.json()
+  const { row, col, value, bold, italic, fillColor, textColor, align, wrap, format } = body
 
-    const cell = await prisma.sheetCell.upsert({
-      where: { sheetId_row_col: { sheetId: id, row, col } },
-      update: {
-        ...(value !== undefined && { value }),
-        ...(bold !== undefined && { bold }),
-        ...(italic !== undefined && { italic }),
-        ...(fillColor !== undefined && { fillColor }),
-        ...(textColor !== undefined && { textColor }),
-        ...(align !== undefined && { align }),
-        ...(wrap !== undefined && { wrap }),
-        ...(format !== undefined && { format }),
-      },
-      create: {
-        sheetId: id,
-        row,
-        col,
-        value: value ?? '',
-        bold: bold ?? false,
-        italic: italic ?? false,
-        fillColor: fillColor ?? null,
-        textColor: textColor ?? null,
-        align: align ?? 'left',
-        wrap: wrap ?? false,
-        format: format ?? 'text',
-      }
-    })
-
-    // Track last editor
-    await prisma.googleSheet.update({ where: { id: id }, data: { updatedBy: userId } })
-
-    return NextResponse.json(cell)
-  } catch (error: any) {
-    console.error(error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  if (row === undefined || col === undefined) {
+    return NextResponse.json({ error: 'row and col are required' }, { status: 400 })
   }
+
+  const cell = await prisma.sheetCell.upsert({
+    where: { sheetId_row_col: { sheetId: id, row, col } },
+    update: {
+      ...(value     !== undefined && { value }),
+      ...(bold      !== undefined && { bold }),
+      ...(italic    !== undefined && { italic }),
+      ...(fillColor !== undefined && { fillColor }),
+      ...(textColor !== undefined && { textColor }),
+      ...(align     !== undefined && { align }),
+      ...(wrap      !== undefined && { wrap }),
+      ...(format    !== undefined && { format }),
+    },
+    create: {
+      sheetId:   id,
+      row,
+      col,
+      value:     value     ?? '',
+      bold:      bold      ?? false,
+      italic:    italic    ?? false,
+      fillColor: fillColor ?? null,
+      textColor: textColor ?? null,
+      align:     align     ?? 'left',
+      wrap:      wrap      ?? false,
+      format:    format    ?? 'text',
+    },
+  })
+
+  await prisma.googleSheet.update({ where: { id }, data: { updatedBy: payload.userId as string } })
+
+  return NextResponse.json(cell)
 }

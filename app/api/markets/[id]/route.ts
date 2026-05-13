@@ -1,51 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { verifyToken } from '@/lib/auth'
+import { getAuthPayload } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  const token = (await cookies()).get('auth_token')?.value
-  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const payload = await verifyToken(token) as any
-  if (!payload || payload.role !== 'SUPER_ADMIN') {
+type Params = { params: Promise<{ id: string }> }
+
+export async function PATCH(req: NextRequest, { params }: Params) {
+  const { payload, error } = await getAuthPayload()
+  if (error) return error
+  if (payload.role !== 'SUPER_ADMIN') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
+  const { id } = await params
 
   const { name } = await req.json()
   if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 })
 
   try {
-    const market = await prisma.market.update({
-      where: { id },
-      data: { name: name.trim() }
-    })
+    const market = await prisma.market.update({ where: { id }, data: { name: name.trim() } })
     return NextResponse.json(market)
-  } catch (error: any) {
-    if (error.code === 'P2002') return NextResponse.json({ error: 'Market name already exists' }, { status: 400 })
+  } catch (err: any) {
+    if (err.code === 'P2002') return NextResponse.json({ error: 'Market name already exists' }, { status: 400 })
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  const token = (await cookies()).get('auth_token')?.value
-  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const payload = await verifyToken(token) as any
-  if (!payload || payload.role !== 'SUPER_ADMIN') {
+export async function DELETE(_: NextRequest, { params }: Params) {
+  const { payload, error } = await getAuthPayload()
+  if (error) return error
+  if (payload.role !== 'SUPER_ADMIN') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
+  const { id } = await params
 
-  try {
-    // Check if market is used by any clients
-    const count = await prisma.client.count({ where: { marketId: id } })
-    if (count > 0) {
-      return NextResponse.json({ error: 'Cannot delete: This market is assigned to clients' }, { status: 400 })
-    }
-
-    await prisma.market.delete({ where: { id } })
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+  const count = await prisma.client.count({ where: { marketId: id } })
+  if (count > 0) {
+    return NextResponse.json({ error: 'Cannot delete: This market is assigned to clients' }, { status: 400 })
   }
+
+  await prisma.market.delete({ where: { id } })
+  return NextResponse.json({ success: true })
 }

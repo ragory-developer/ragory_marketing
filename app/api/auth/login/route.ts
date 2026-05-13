@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import * as bcrypt from 'bcryptjs'
-import { signToken as createToken } from '@/lib/auth'
+import { signToken } from '@/lib/auth'
 import { cookies } from 'next/headers'
 
 export async function POST(req: Request) {
@@ -14,7 +14,7 @@ export async function POST(req: Request) {
 
     const user = await prisma.user.findUnique({
       where: { username },
-      include: { permissions: true }
+      include: { permissions: true },
     })
 
     if (!user || !user.isActive) {
@@ -26,20 +26,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
     }
 
-    // Set cookie
-    const t = await createToken({
+    const token = await signToken({
       userId: user.id,
       role: user.role,
-      permissions: user.permissions.map(p => p.navKey)
-    });
+      permissions: user.permissions.map((p) => p.navKey),
+    })
 
-    (await cookies()).set({
+    ;(await cookies()).set({
       name: 'auth_token',
-      value: t,
+      value: token,
       httpOnly: true,
       path: '/',
       secure: process.env.NODE_ENV === 'production',
-      maxAge: 60 * 60 * 24, // 1 day
+      maxAge: 60 * 60 * 24,
     })
 
     return NextResponse.json({
@@ -48,11 +47,11 @@ export async function POST(req: Request) {
         name: user.name,
         username: user.username,
         role: user.role,
-        permissions: user.permissions.map(p => p.navKey)
-      }
+        permissions: user.permissions.map((p) => p.navKey),
+      },
     })
   } catch (error) {
-    console.error('Login error:', error)
+    console.error('[Login]', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

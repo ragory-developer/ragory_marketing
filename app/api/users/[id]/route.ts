@@ -1,36 +1,35 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { getAuthPayload } from '@/lib/auth'
 import prisma from '@/lib/prisma'
-import * as bcrypt from 'bcryptjs'
 
-export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await params
-    const { name, isActive, password } = await req.json()
-    
-    const updateData: any = {}
-    if (name) updateData.name = name
-    if (isActive !== undefined) updateData.isActive = isActive
-    if (password) {
-      updateData.password = await bcrypt.hash(password, 10)
-    }
+type Params = { params: Promise<{ id: string }> }
 
-    const user = await prisma.user.update({
-      where: { id },
-      data: updateData
-    })
+export async function PATCH(req: NextRequest, { params }: Params) {
+  const { payload, error } = await getAuthPayload()
+  if (error) return error
+  const { id } = await params
 
-    return NextResponse.json({ success: true, user })
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to update user' }, { status: 500 })
+  const { name, isActive, password } = await req.json()
+
+  const updateData: Record<string, unknown> = {}
+  if (name !== undefined) updateData.name = name
+  if (isActive !== undefined) updateData.isActive = isActive
+  if (password) {
+    const bcrypt = await import('bcryptjs')
+    updateData.password = await bcrypt.hash(password, 10)
   }
+
+  const user = await prisma.user.update({ where: { id }, data: updateData })
+  return NextResponse.json({ success: true, user })
 }
 
-export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await params
-    await prisma.user.delete({ where: { id } })
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to delete user' }, { status: 500 })
+export async function DELETE(_: NextRequest, { params }: Params) {
+  const { payload, error } = await getAuthPayload()
+  if (error) return error
+  if (payload.role !== 'SUPER_ADMIN') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
+  const { id } = await params
+  await prisma.user.delete({ where: { id } })
+  return NextResponse.json({ success: true })
 }

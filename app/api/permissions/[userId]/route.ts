@@ -1,41 +1,35 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { getAuthPayload } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 
-export async function GET(req: Request, { params }: { params: Promise<{ userId: string }> }) {
-  try {
-    const { userId } = await params
-    const permissions = await prisma.permission.findMany({
-      where: { userId }
-    })
-    return NextResponse.json(permissions.map(p => p.navKey))
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to fetch permissions' }, { status: 500 })
-  }
+type Params = { params: Promise<{ userId: string }> }
+
+export async function GET(_: NextRequest, { params }: Params) {
+  const { error } = await getAuthPayload()
+  if (error) return error
+  const { userId } = await params
+
+  const permissions = await prisma.permission.findMany({ where: { userId } })
+  return NextResponse.json(permissions.map((p) => p.navKey))
 }
 
-export async function PUT(req: Request, { params }: { params: Promise<{ userId: string }> }) {
-  try {
-    const { userId } = await params
-    const { permissions } = await req.json() // Array of navKeys e.g. ['dashboard', 'employees']
-
-    // Clear existing
-    await prisma.permission.deleteMany({
-      where: { userId }
-    })
-
-    // Insert new
-    if (permissions && permissions.length > 0) {
-      await prisma.permission.createMany({
-        data: permissions.map((key: string) => ({
-          userId,
-          navKey: key,
-          canAccess: true
-        }))
-      })
-    }
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to update permissions' }, { status: 500 })
+export async function PUT(req: NextRequest, { params }: Params) {
+  const { payload, error } = await getAuthPayload()
+  if (error) return error
+  if (payload.role !== 'SUPER_ADMIN') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
+  const { userId } = await params
+
+  const { permissions } = await req.json()
+
+  await prisma.permission.deleteMany({ where: { userId } })
+
+  if (permissions?.length > 0) {
+    await prisma.permission.createMany({
+      data: permissions.map((key: string) => ({ userId, navKey: key, canAccess: true })),
+    })
+  }
+
+  return NextResponse.json({ success: true })
 }

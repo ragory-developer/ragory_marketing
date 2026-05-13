@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { verifyToken } from '@/lib/auth'
+import { getAuthPayload } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+type Params = { params: Promise<{ id: string }> }
+
+export async function POST(req: NextRequest, { params }: Params) {
+  const { payload, error } = await getAuthPayload()
+  if (error) return error
   const { id } = await params
-  const token = (await cookies()).get('auth_token')?.value
-  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const payload = await verifyToken(token) as any
-  if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { content, type } = await req.json()
   if (!content) return NextResponse.json({ error: 'Content required' }, { status: 400 })
@@ -16,14 +15,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const note = await prisma.clientNote.create({
     data: {
       clientId: id,
-      authorId: payload.userId,
+      authorId: payload.userId as string,
       content,
       type: type || 'GENERAL',
     },
     include: { author: { select: { id: true, name: true } } },
   })
 
-  // Update last follow-up date on the client
   await prisma.client.update({
     where: { id },
     data: { lastFollowUpAt: new Date() },
