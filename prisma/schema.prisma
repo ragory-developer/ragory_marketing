@@ -164,6 +164,8 @@ model EmergencyNote {
   author    User     @relation("EmergencyNoteAuthor", fields: [authorId], references: [id])
   doneBy    User?    @relation("EmergencyNoteDoneBy", fields: [doneById], references: [id])
 
+  @@index([clientId])
+  @@index([authorId])
   @@map("emergency_notes")
 }
 
@@ -220,5 +222,7 @@ model CallLog {
   client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   author      User     @relation(fields: [authorId], references: [id])
 
+  @@index([clientId])
+  @@index([authorId])
   @@map("call_logs")
 }

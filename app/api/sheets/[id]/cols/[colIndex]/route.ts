@@ -10,6 +10,8 @@ export async function DELETE(_: NextRequest, { params }: Params) {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   if (!uuidRegex.test(id)) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 })
 
+  const cIdx = parseInt(colIndexStr)
+
   const sheet = await prisma.googleSheet.findUnique({ where: { id } })
   if (!sheet) return NextResponse.json({ error: 'Sheet not found' }, { status: 404 })
 

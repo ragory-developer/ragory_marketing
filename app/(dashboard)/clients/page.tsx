@@ -1251,7 +1251,7 @@ export default function ClientsPage() {
                       </label>
                       {callClient.alternativePhone && (
                         <label style={{ flex:1, display:'flex', alignItems:'center', gap:'14px', padding:'18px', background: selectedCallPhone === callClient.alternativePhone ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.03)', border: `2px solid ${selectedCallPhone === callClient.alternativePhone ? '#6366f1' : 'rgba(255,255,255,0.05)'}`, borderRadius:'20px', cursor:'pointer', transition:'all 0.3s', boxShadow: selectedCallPhone === callClient.alternativePhone ? '0 10px 20px rgba(99,102,241,0.1)' : 'none' }}>
-                          <input type="radio" checked={selectedCallPhone === callClient.alternativePhone} onChange={()=>setSelectedCallPhone(callClient.alternativePhone)} style={{ accentColor:'#6366f1', width:'18px', height:'18px' }} />
+                          <input type="radio" checked={selectedCallPhone === callClient.alternativePhone} onChange={()=>setSelectedCallPhone(callClient.alternativePhone || '')} style={{ accentColor:'#6366f1', width:'18px', height:'18px' }} />
                           <div>
                             <div style={{ color:'white', fontSize:'15px', fontWeight:900 }}>{callClient.alternativePhone}</div>
                             <div style={{ color:'#94a3b8', fontSize:'11px', fontWeight:700, letterSpacing:'0.05em' }}>SECONDARY LINE</div>
