@@ -31,6 +31,7 @@ model User {
   clientNotes         ClientNote[] @relation("NoteAuthor")
   emergencyNotes      EmergencyNote[] @relation("EmergencyNoteAuthor")
   emergencyNotesDone  EmergencyNote[] @relation("EmergencyNoteDoneBy")
+  callLogs            CallLog[]
 
   @@map("users")
 }
@@ -131,6 +132,7 @@ model Client {
   assignedTo        User?         @relation("ClientAssignedTo", fields: [assignedToId], references: [id])
   clientNotes       ClientNote[]
   emergencyNotes    EmergencyNote[]
+  callLogs          CallLog[]
 
   @@index([phone])
   @@index([status])
@@ -204,4 +206,19 @@ enum NoteType {
   FOLLOW_UP
   COMPLAINT
   SMS
+}
+
+model CallLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  clientId    String   @map("client_id") @db.Uuid
+  authorId    String   @map("author_id") @db.Uuid
+  phoneNumber String   @map("phone_number")
+  duration    Int      @default(0) // in seconds
+  note        String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  author      User     @relation(fields: [authorId], references: [id])
+
+  @@map("call_logs")
 }

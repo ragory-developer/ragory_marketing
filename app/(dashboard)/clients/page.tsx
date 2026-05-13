@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, Plus, Phone, MapPin, User, Edit2, Trash2, MessageSquare, RefreshCw, ChevronLeft, ChevronRight, Filter, X, MessageCircle, AlertCircle, Bell, ShieldCheck } from 'lucide-react'
+import { Search, Plus, Phone, MapPin, User, Edit2, Trash2, MessageSquare, RefreshCw, ChevronLeft, ChevronRight, Filter, X, MessageCircle, AlertCircle, Bell, ShieldCheck, Clock } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const STATUS_COLORS: Record<string, string> = {
@@ -105,6 +105,19 @@ export default function ClientsPage() {
   const [smsScheduledTime, setSmsScheduledTime] = useState('')
   const [smsLanguage, setSmsLanguage] = useState<'english' | 'bangla'>('english')
   const [sendingSms, setSendingSms] = useState(false)
+  
+  // Call State
+  const [showCallModal, setShowCallModal] = useState(false)
+  const [callClient, setCallClient] = useState<Client|null>(null)
+  const [selectedCallPhone, setSelectedCallPhone] = useState('')
+  const [callNote, setCallNote] = useState('')
+  const [isCalling, setIsCalling] = useState(false)
+  const [callStartTime, setCallStartTime] = useState<number|null>(null)
+  const [callDuration, setCallDuration] = useState(0)
+  const [timerInterval, setTimerInterval] = useState<any>(null)
+  const [savingCall, setSavingCall] = useState(false)
+  const [previousCalls, setPreviousCalls] = useState<any[]>([])
+  const [loadingHistory, setLoadingHistory] = useState(false)
 
   const handleFieldChange = (name: string, value: string) => {
     setForm(prev => ({ ...prev, [name]: value }))
@@ -356,6 +369,82 @@ export default function ClientsPage() {
     }
   }
 
+  const openCallModal = async (c: Client) => {
+    setCallClient(c)
+    setSelectedCallPhone(c.phone)
+    setCallNote('')
+    setIsCalling(false)
+    setCallDuration(0)
+    setPreviousCalls([])
+    setShowCallModal(true)
+    
+    // Fetch last 3 calls for this client
+    setLoadingHistory(true)
+    try {
+      const res = await fetch(`/api/calls?clientId=${c.id}&limit=3`)
+      if (res.ok) {
+        const data = await res.json()
+        setPreviousCalls(data.calls || [])
+      }
+    } catch (err) {
+      console.error('Failed to load call history:', err)
+    } finally {
+      setLoadingHistory(false)
+    }
+  }
+
+  const startCall = () => {
+    setIsCalling(true)
+    setCallStartTime(Date.now())
+    const interval = setInterval(() => {
+      setCallDuration(Math.floor((Date.now() - (callStartTime || Date.now())) / 1000))
+    }, 1000)
+    setTimerInterval(interval)
+  }
+
+  const endCall = () => {
+    setIsCalling(false)
+    if (timerInterval) clearInterval(timerInterval)
+    setTimerInterval(null)
+    const finalDuration = Math.floor((Date.now() - (callStartTime || Date.now())) / 1000)
+    setCallDuration(finalDuration)
+  }
+
+  const saveCallLog = async () => {
+    if (!callClient) return
+    setSavingCall(true)
+    try {
+      const res = await fetch('/api/calls', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: callClient.id,
+          phoneNumber: selectedCallPhone,
+          duration: callDuration,
+          note: callNote
+        })
+      })
+      if (res.ok) {
+        toast.success('Call logged successfully')
+        setShowCallModal(false)
+        load()
+      } else {
+        const data = await res.json()
+        toast.error(data.error || 'Failed to save call log')
+      }
+    } catch {
+      toast.error('Network error')
+    } finally {
+      setSavingCall(false)
+    }
+  }
+
+  const formatDuration = (s: number) => {
+    const mins = Math.floor(s / 60)
+    const secs = s % 60
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:'24px' }}>
 
@@ -567,6 +656,7 @@ export default function ClientsPage() {
                         )}
                       </button>
                       <button onClick={()=>openSmsModal(c)} title="Send SMS" style={{ padding:'6px', background:'rgba(16,185,129,0.15)', border:'1px solid rgba(16,185,129,0.3)', borderRadius:'6px', color:'#10b981', cursor:'pointer' }}><MessageCircle size={14}/></button>
+                      <button onClick={()=>openCallModal(c)} title="Call Client" style={{ padding:'6px', background:'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.3)', borderRadius:'6px', color:'#818cf8', cursor:'pointer' }}><Phone size={14}/></button>
                       <button onClick={()=>openView(c)} title="Log Activity / Notes" style={{ padding:'6px', background:'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.3)', borderRadius:'6px', color:'#818cf8', cursor:'pointer' }}><MessageSquare size={14}/></button>
                       <button onClick={()=>openEdit(c)} title="Edit Details" style={{ padding:'6px', background:'rgba(245,158,11,0.15)', border:'1px solid rgba(245,158,11,0.3)', borderRadius:'6px', color:'#fbbf24', cursor:'pointer' }}><Edit2 size={14}/></button>
                       <button onClick={()=>handleDelete(c.id)} title="Delete" style={{ padding:'6px', background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:'6px', color:'#f87171', cursor:'pointer' }}><Trash2 size={14}/></button>
@@ -1073,6 +1163,184 @@ export default function ClientsPage() {
           </div>
         </div>
       )}
+
+      {/* Call Modal */}
+      {showCallModal && callClient && (
+        <div className="modal-overlay" onClick={()=>!isCalling && setShowCallModal(false)} style={{ backdropFilter:'blur(20px)', background:'rgba(15, 23, 42, 0.4)' }}>
+          <div className="call-modal-inner" onClick={e=>e.stopPropagation()} 
+            style={{ 
+              width:'95%', maxWidth:'1080px', height:'auto', maxHeight:'92vh', padding:'0', borderRadius:'32px',
+              display:'flex', overflow:'hidden', border:'1px solid rgba(255,255,255,0.12)',
+              animation: 'modalIn 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+              background:'linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.8))',
+              boxShadow:'0 40px 120px -20px rgba(0,0,0,0.5), inset 0 0 80px rgba(79, 70, 229, 0.05)',
+              position:'relative'
+            }}>
+            
+            {/* Left Column: Intelligence Hub (65%) */}
+            <div style={{ flex: 1.8, display:'flex', flexDirection:'column', borderRight:'1px solid rgba(255,255,255,0.08)', position:'relative', zIndex:1 }}>
+              
+              {/* Header */}
+              <div style={{ padding:'24px 32px', borderBottom:'1px solid rgba(255,255,255,0.08)', display:'flex', justifyContent:'space-between', alignItems:'center', background:'rgba(255,255,255,0.03)' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:'14px' }}>
+                   <div style={{ width:'40px', height:'40px', borderRadius:'12px', background: isCalling ? 'linear-gradient(135deg, #ef4444, #dc2626)' : 'linear-gradient(135deg, #6366f1, #4f46e5)', display:'flex', alignItems:'center', justifyContent:'center', color:'white', boxShadow: isCalling ? '0 8px 16px rgba(239,68,68,0.3)' : '0 8px 16px rgba(99,102,241,0.3)', transition:'all 0.4s' }}>
+                     {isCalling ? <Phone size={20} style={{ transform:'rotate(135deg)' }} /> : <Phone size={20} />}
+                   </div>
+                   <div>
+                     <h2 style={{ fontSize:'17px', fontWeight:900, color:'white', letterSpacing:'-0.02em' }}>{isCalling ? 'Voice Session Active' : 'Communication Hub'}</h2>
+                     <p style={{ fontSize:'11px', color:'#94a3b8', fontWeight:600, opacity:0.8 }}>{callClient.name} • {callClient.shopName || 'Business Entity'}</p>
+                   </div>
+                </div>
+                {!isCalling && <button onClick={()=>setShowCallModal(false)} style={{ background:'rgba(255,255,255,0.05)', border:'none', borderRadius:'10px', color:'#94a3b8', cursor:'pointer', padding:'8px', transition:'all 0.2s' }} onMouseEnter={e=>e.currentTarget.style.background='rgba(239,68,68,0.1)'}><X size={20}/></button>}
+              </div>
+
+              <div style={{ flex:1, overflowY:'auto', padding:'28px 32px' }}>
+                
+                {/* Information Grid */}
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'32px' }}>
+                  
+                  {/* Row 1: Profile & Business */}
+                  <div style={{ background:'rgba(255,255,255,0.04)', padding:'18px 22px', borderRadius:'24px', border:'1px solid rgba(255,255,255,0.06)', backdropFilter:'blur(5px)' }}>
+                     <label style={{ fontSize:'9px', color:'#6366f1', textTransform:'uppercase', fontWeight:900, letterSpacing:'0.1em' }}>Profile & Identity</label>
+                     <div style={{ color:'white', fontSize:'16px', fontWeight:900, marginTop:'8px' }}>{callClient.name}</div>
+                     <div style={{ color:'#e2e8f0', fontSize:'13px', fontWeight:700, marginTop:'4px' }}>{callClient.shopName || 'Unregistered Shop'}</div>
+                     <div style={{ fontSize:'11px', color:'#94a3b8', marginTop:'6px', fontWeight:600 }}>{callClient.businessType || 'General Category'}</div>
+                  </div>
+
+                  <div style={{ background:'rgba(255,255,255,0.04)', padding:'18px 22px', borderRadius:'24px', border:'1px solid rgba(255,255,255,0.06)', backdropFilter:'blur(5px)' }}>
+                     <label style={{ fontSize:'9px', color:'#6366f1', textTransform:'uppercase', fontWeight:900, letterSpacing:'0.1em' }}>Market Position</label>
+                     <div style={{ color:'white', fontSize:'16px', fontWeight:900, marginTop:'8px', display:'flex', alignItems:'center', gap:'8px' }}>
+                        <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:'#6366f1', boxShadow:'0 0 10px #6366f1' }}></div>
+                        {callClient.market?.name || 'Open Market'}
+                     </div>
+                     <div style={{ display:'flex', gap:'8px', marginTop:'12px' }}>
+                        <span style={{ fontSize:'10px', fontWeight:900, color:STATUS_COLORS[callClient.status], background:STATUS_COLORS[callClient.status]+'15', padding:'3px 10px', borderRadius:'8px', border:`1px solid ${STATUS_COLORS[callClient.status]}33` }}>{callClient.status}</span>
+                        <span style={{ fontSize:'10px', fontWeight:900, color:PRIORITY_COLORS[callClient.priority], background:PRIORITY_COLORS[callClient.priority]+'15', padding:'3px 10px', borderRadius:'8px', border:`1px solid ${PRIORITY_COLORS[callClient.priority]}33` }}>{callClient.priority}</span>
+                     </div>
+                  </div>
+
+                  {/* Row 2: Location Context */}
+                  <div style={{ gridColumn:'1 / -1', background:'rgba(255,255,255,0.04)', padding:'18px 22px', borderRadius:'24px', border:'1px solid rgba(255,255,255,0.06)', backdropFilter:'blur(5px)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                     <div>
+                        <label style={{ fontSize:'9px', color:'#6366f1', textTransform:'uppercase', fontWeight:900, letterSpacing:'0.1em' }}>Geographic Context</label>
+                        <div style={{ color:'white', fontSize:'14px', fontWeight:800, display:'flex', alignItems:'center', gap:'10px', marginTop:'8px' }}>
+                          <MapPin size={16} color="#6366f1" /> {callClient.district || 'Location'} — {callClient.area || 'Specific Area'}
+                        </div>
+                        {callClient.address && <div style={{ fontSize:'12px', color:'#94a3b8', marginTop:'4px', marginLeft:'26px', fontWeight:500 }}>{callClient.address}</div>}
+                     </div>
+                     <div style={{ textAlign:'right', background:'rgba(99,102,241,0.05)', padding:'12px 20px', borderRadius:'16px', border:'1px solid rgba(99,102,241,0.1)' }}>
+                        <label style={{ fontSize:'9px', color:'#6366f1', textTransform:'uppercase', fontWeight:900, letterSpacing:'0.05em' }}>Interaction Summary</label>
+                        <div style={{ color:'white', fontSize:'14px', fontWeight:900, marginTop:'4px' }}>{callClient.clientNotes?.length || 0} Events</div>
+                        <div style={{ fontSize:'10px', color:'#94a3b8', fontWeight:700 }}>Last: {callClient.clientNotes?.[0] ? new Date(callClient.clientNotes[0].createdAt).toLocaleDateString() : 'None'}</div>
+                     </div>
+                  </div>
+                </div>
+
+                {/* Interaction Center */}
+                <div style={{ display:'flex', flexDirection:'column', gap:'24px' }}>
+                  
+                  {/* Number Selectors */}
+                  {!isCalling && (
+                    <div style={{ display:'flex', gap:'16px' }}>
+                      <label style={{ flex:1, display:'flex', alignItems:'center', gap:'14px', padding:'18px', background: selectedCallPhone === callClient.phone ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.03)', border: `2px solid ${selectedCallPhone === callClient.phone ? '#6366f1' : 'rgba(255,255,255,0.05)'}`, borderRadius:'20px', cursor:'pointer', transition:'all 0.3s', boxShadow: selectedCallPhone === callClient.phone ? '0 10px 20px rgba(99,102,241,0.1)' : 'none' }}>
+                        <input type="radio" checked={selectedCallPhone === callClient.phone} onChange={()=>setSelectedCallPhone(callClient.phone)} style={{ accentColor:'#6366f1', width:'18px', height:'18px' }} />
+                        <div>
+                          <div style={{ color:'white', fontSize:'15px', fontWeight:900 }}>{callClient.phone}</div>
+                          <div style={{ color:'#94a3b8', fontSize:'11px', fontWeight:700, letterSpacing:'0.05em' }}>PRIMARY LINE</div>
+                        </div>
+                      </label>
+                      {callClient.alternativePhone && (
+                        <label style={{ flex:1, display:'flex', alignItems:'center', gap:'14px', padding:'18px', background: selectedCallPhone === callClient.alternativePhone ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.03)', border: `2px solid ${selectedCallPhone === callClient.alternativePhone ? '#6366f1' : 'rgba(255,255,255,0.05)'}`, borderRadius:'20px', cursor:'pointer', transition:'all 0.3s', boxShadow: selectedCallPhone === callClient.alternativePhone ? '0 10px 20px rgba(99,102,241,0.1)' : 'none' }}>
+                          <input type="radio" checked={selectedCallPhone === callClient.alternativePhone} onChange={()=>setSelectedCallPhone(callClient.alternativePhone)} style={{ accentColor:'#6366f1', width:'18px', height:'18px' }} />
+                          <div>
+                            <div style={{ color:'white', fontSize:'15px', fontWeight:900 }}>{callClient.alternativePhone}</div>
+                            <div style={{ color:'#94a3b8', fontSize:'11px', fontWeight:700, letterSpacing:'0.05em' }}>SECONDARY LINE</div>
+                          </div>
+                        </label>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Main Action Button */}
+                  <div style={{ display:'flex', gap:'16px' }}>
+                    {isCalling ? (
+                      <button onClick={endCall} style={{ flex:1, padding:'22px', background:'linear-gradient(135deg, #ef4444, #b91c1c)', border:'none', color:'white', fontWeight:900, fontSize:'16px', borderRadius:'22px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'16px', boxShadow:'0 15px 35px rgba(239,68,68,0.4)', transition:'all 0.3s' }}>
+                        <div style={{ width:'10px', height:'10px', borderRadius:'50%', background:'white', animation:'pulse 1s infinite' }}></div>
+                        <Phone size={24} style={{ transform:'rotate(135deg)' }} /> TERMINATE SESSION — {formatDuration(callDuration)}
+                      </button>
+                    ) : (
+                      <button onClick={startCall} style={{ flex:1, padding:'22px', background:'linear-gradient(135deg, #10b981, #059669)', border:'none', color:'white', fontWeight:900, fontSize:'16px', borderRadius:'22px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'14px', boxShadow:'0 15px 35px rgba(16,185,129,0.3)', transition:'all 0.3s' }} onMouseEnter={e=>e.currentTarget.style.transform='translateY(-2px)'} onMouseLeave={e=>e.currentTarget.style.transform='translateY(0)'}>
+                        <Phone size={24} /> INITIATE VOICE CALL
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Summary Engine */}
+                  {(isCalling || callDuration > 0) && (
+                    <div style={{ animation:'fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1)', background:'rgba(255,255,255,0.03)', padding:'24px', borderRadius:'28px', border:'1px solid rgba(255,255,255,0.08)', backdropFilter:'blur(10px)' }}>
+                       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px' }}>
+                          <label style={{ fontSize:'10px', color:'#6366f1', textTransform:'uppercase', fontWeight:900, letterSpacing:'0.1em' }}>Engagement Log</label>
+                          {callDuration > 0 && <span style={{ fontSize:'11px', color:'#10b981', fontWeight:900, background:'rgba(16,185,129,0.1)', padding:'4px 12px', borderRadius:'10px' }}>{formatDuration(callDuration)} Recorded</span>}
+                       </div>
+                       <textarea 
+                         value={callNote} onChange={e=>setCallNote(e.target.value)}
+                         placeholder="Synthesize the conversation details here..."
+                         style={{ width:'100%', minHeight:'110px', background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'20px', color:'white', padding:'20px', resize:'none', fontSize:'15px', outline:'none', transition:'all 0.2s', lineHeight:1.6 }}
+                         onFocus={e=>e.currentTarget.style.borderColor='#6366f1'}
+                         onBlur={e=>e.currentTarget.style.borderColor='rgba(255,255,255,0.1)'}
+                       />
+                       {!isCalling && (
+                         <button onClick={saveCallLog} disabled={savingCall} style={{ width:'100%', padding:'18px', background:'linear-gradient(135deg, #4f46e5, #6366f1)', color:'white', border:'none', borderRadius:'18px', fontWeight:900, fontSize:'15px', marginTop:'20px', cursor: savingCall ? 'not-allowed' : 'pointer', opacity: savingCall ? 0.7 : 1, boxShadow:'0 10px 25px rgba(79,70,229,0.3)' }}>
+                           {savingCall ? 'Synchronizing...' : 'Finalize & Archive Interaction'}
+                         </button>
+                       )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column: Interaction Track (35%) */}
+            <div style={{ flex: 1.1, background:'rgba(15, 23, 42, 0.3)', display:'flex', flexDirection:'column', borderLeft:'1px solid rgba(255,255,255,0.08)', backdropFilter:'blur(5px)' }}>
+               <div style={{ padding:'28px 32px', borderBottom:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.02)' }}>
+                  <h3 style={{ fontSize:'13px', fontWeight:900, color:'white', textTransform:'uppercase', letterSpacing:'0.15em', display:'flex', alignItems:'center', gap:'12px' }}>
+                    <Clock size={18} color="#6366f1" /> Interaction Track
+                  </h3>
+                  <p style={{ fontSize:'11px', color:'#94a3b8', marginTop:'4px', fontWeight:600 }}>History timeline for {callClient.name}</p>
+               </div>
+               
+               <div style={{ flex:1, overflowY:'auto', padding:'24px', display:'flex', flexDirection:'column', gap:'14px' }}>
+                  {loadingHistory ? (
+                    <div style={{ textAlign:'center', padding:'60px' }}><RefreshCw size={28} className="spin" style={{ color:'#6366f1', opacity:0.4 }} /></div>
+                  ) : previousCalls.length === 0 ? (
+                    <div style={{ textAlign:'center', padding:'80px 20px', opacity:0.2 }}>
+                      <MessageSquare size={42} style={{ margin:'0 auto 16px auto', display:'block' }} />
+                      <p style={{ fontSize:'12px', fontWeight:900 }}>Archive is empty</p>
+                    </div>
+                  ) : previousCalls.map((call, idx) => (
+                    <div key={call.id} className="glass-panel" style={{ padding:'18px', borderRadius:'22px', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.06)', transition:'transform 0.2s' }}>
+                       <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'10px', alignItems:'center' }}>
+                          <span style={{ fontSize:'10px', color:'#94a3b8', fontWeight:800, background:'rgba(255,255,255,0.05)', padding:'2px 8px', borderRadius:'6px' }}>{new Date(call.createdAt).toLocaleDateString('en-GB', {day:'2-digit', month:'short'})}</span>
+                          <span style={{ fontSize:'11px', color:'#10b981', fontWeight:900 }}>{formatDuration(call.duration)}</span>
+                       </div>
+                       <p style={{ fontSize:'14px', color:'#e2e8f0', lineHeight:1.6, marginBottom:'12px', fontWeight:500 }}>{call.note || <span style={{ opacity:0.4, fontStyle:'italic' }}>No summary recorded</span>}</p>
+                       <div style={{ display:'flex', alignItems:'center', gap:'10px', paddingTop:'10px', borderTop:'1px solid rgba(255,255,255,0.03)' }}>
+                          <div style={{ width:'22px', height:'22px', borderRadius:'50%', background:'rgba(99,102,241,0.2)', color:'#a5b4fc', fontSize:'10px', fontWeight:900, display:'flex', alignItems:'center', justifyContent:'center', border:'1px solid rgba(99,102,241,0.3)' }}>{call.author.name.charAt(0)}</div>
+                          <span style={{ fontSize:'11px', color:'#64748b', fontWeight:700 }}>{call.author.name}</span>
+                       </div>
+                    </div>
+                  ))}
+                  {previousCalls.length > 0 && (
+                    <button onClick={()=>router.push('/calls?q='+callClient.name)} style={{ width:'100%', padding:'14px', background:'rgba(99,102,241,0.1)', border:'1px solid rgba(99,102,241,0.2)', borderRadius:'16px', color:'#818cf8', fontSize:'11px', fontWeight:800, cursor:'pointer', marginTop:'10px', transition:'all 0.2s' }} onMouseEnter={e=>e.currentTarget.style.background='rgba(99,102,241,0.2)'}>Deep Archive View</button>
+                  )}
+               </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+
     </div>
   )
 }

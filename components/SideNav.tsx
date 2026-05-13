@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, TableProperties, Users, Key,
-  Settings, UserCircle, ShieldCheck, Building2
+  Settings, UserCircle, ShieldCheck, Building2, Phone
 } from 'lucide-react'
 
 const NAV_GROUPS = [
@@ -12,6 +12,7 @@ const NAV_GROUPS = [
     items: [
       { key: 'dashboard', label: 'Dashboard',   icon: <LayoutDashboard size={18}/>, href: '/dashboard', always: true },
       { key: 'clients',   label: 'All Clients', icon: <UserCircle size={18}/>,      href: '/clients' },
+      { key: 'calls',     label: 'Call History', icon: <Phone size={18}/>,           href: '/calls' },
       { key: 'sheets',    label: 'Sheets',      icon: <TableProperties size={18}/>, href: '/sheets' },
     ]
   },
