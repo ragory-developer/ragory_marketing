@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
 import { 
@@ -52,7 +52,9 @@ function formatDisplay(value: string, format: string): string {
   }
 }
 
-export default function SheetEditorPage({ params }: { params: { id: string } }) {
+export default function SheetEditorPage() {
+  const params = useParams()
+  const id = params.id as string
   const router = useRouter()
   const [sheet, setSheet] = useState<any>(null)
   const [cells, setCells] = useState<Record<CellKey, CellData>>({})
@@ -103,10 +105,10 @@ export default function SheetEditorPage({ params }: { params: { id: string } }) 
     window.addEventListener('mousemove', handleMouseMove)
     window.addEventListener('mouseup', handleMouseUp)
     return () => { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mouseup', handleMouseUp) }
-  }, [isResizing, params.id])
+  }, [isResizing, id])
 
   const loadData = useCallback(() => {
-    fetch(`/api/sheets/${params.id}`)
+    fetch(`/api/sheets/${id}`)
       .then(r => r.json())
       .then(data => {
         if (data.error) { toast.error(data.error); return }
@@ -130,7 +132,7 @@ export default function SheetEditorPage({ params }: { params: { id: string } }) 
         setColWidths(loadedWidths)
       })
       .catch(() => toast.error('Failed to load sheet'))
-  }, [params.id])
+  }, [id])
 
   useEffect(() => {
     loadData()
@@ -179,7 +181,7 @@ export default function SheetEditorPage({ params }: { params: { id: string } }) 
   const saveCell = useCallback(async (row: number, col: number, data: Partial<CellData>) => {
     setSaving(true)
     try {
-      await fetch(`/api/sheets/${params.id}/cells`, {
+      await fetch(`/api/sheets/${id}/cells`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ row, col, ...data })
@@ -187,7 +189,7 @@ export default function SheetEditorPage({ params }: { params: { id: string } }) 
     } finally {
       setSaving(false)
     }
-  }, [params.id])
+  }, [id])
 
   const updateCell = (row: number, col: number, data: Partial<CellData>) => {
     const key = `${row}:${col}`
@@ -260,20 +262,20 @@ export default function SheetEditorPage({ params }: { params: { id: string } }) 
   }
 
   const handleAddRow = async () => {
-    const res = await fetch(`/api/sheets/${params.id}/rows`, { method: 'POST' })
+    const res = await fetch(`/api/sheets/${id}/rows`, { method: 'POST' })
     const data = await res.json()
     if (data.rowCount) setRows(data.rowCount)
   }
 
   const handleAddCol = async () => {
-    const res = await fetch(`/api/sheets/${params.id}/cols`, { method: 'POST' })
+    const res = await fetch(`/api/sheets/${id}/cols`, { method: 'POST' })
     const data = await res.json()
     if (data.colCount) setCols(data.colCount)
   }
 
   const handleDeleteRow = async () => {
     if (!selection || selection.startRow < 0) return
-    const res = await fetch(`/api/sheets/${params.id}/rows/${selection.startRow}`, { method: 'DELETE' })
+    const res = await fetch(`/api/sheets/${id}/rows/${selection.startRow}`, { method: 'DELETE' })
     const data = await res.json()
     if (data.rowCount) {
       setRows(data.rowCount)
@@ -284,7 +286,7 @@ export default function SheetEditorPage({ params }: { params: { id: string } }) 
 
   const handleDeleteCol = async () => {
     if (!selection || selection.startCol < 0) return
-    const res = await fetch(`/api/sheets/${params.id}/cols/${selection.startCol}`, { method: 'DELETE' })
+    const res = await fetch(`/api/sheets/${id}/cols/${selection.startCol}`, { method: 'DELETE' })
     const data = await res.json()
     if (data.colCount) {
       setCols(data.colCount)

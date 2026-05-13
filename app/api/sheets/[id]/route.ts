@@ -6,6 +6,13 @@ type Params = { params: Promise<{ id: string }> }
 
 export async function GET(_: NextRequest, { params }: Params) {
   const { id } = await params
+  
+  // Validate UUID format to prevent Prisma crash
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!uuidRegex.test(id)) {
+    return NextResponse.json({ error: 'Invalid Sheet ID format' }, { status: 400 })
+  }
+
   const sheet = await prisma.googleSheet.findUnique({
     where: { id },
     include: {

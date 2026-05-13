@@ -9,6 +9,10 @@ export async function GET(_: NextRequest, { params }: Params) {
   const { payload, error } = await getAuthPayload()
   if (error) return error
   const { id } = await params
+  
+  // Validate UUID format
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!uuidRegex.test(id)) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 })
 
   const client = await prisma.client.findUnique({
     where: { id },
