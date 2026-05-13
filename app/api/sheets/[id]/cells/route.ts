@@ -4,7 +4,8 @@ import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
 
 // PATCH — upsert a single cell (value + formatting)
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   try {
     const token = (await cookies()).get('auth_token')?.value
     const decoded = token ? await verifyToken(token) : null
@@ -19,7 +20,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
 
     const cell = await prisma.sheetCell.upsert({
-      where: { sheetId_row_col: { sheetId: params.id, row, col } },
+      where: { sheetId_row_col: { sheetId: id, row, col } },
       update: {
         ...(value !== undefined && { value }),
         ...(bold !== undefined && { bold }),
@@ -31,7 +32,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         ...(format !== undefined && { format }),
       },
       create: {
-        sheetId: params.id,
+        sheetId: id,
         row,
         col,
         value: value ?? '',
@@ -46,7 +47,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     })
 
     // Track last editor
-    await prisma.googleSheet.update({ where: { id: params.id }, data: { updatedBy: userId } })
+    await prisma.googleSheet.update({ where: { id: id }, data: { updatedBy: userId } })
 
     return NextResponse.json(cell)
   } catch (error: any) {

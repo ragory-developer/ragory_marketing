@@ -1,27 +1,28 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 
-export async function DELETE(req: Request, { params }: { params: { id: string, rowIndex: string } }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string, rowIndex: string }> }) {
+  const { id, rowIndex } = await params;
   try {
-    const rowIndex = parseInt(params.rowIndex)
-    const sheet = await prisma.googleSheet.findUnique({ where: { id: params.id } })
+    const rIdx = parseInt(rowIndex)
+    const sheet = await prisma.googleSheet.findUnique({ where: { id } })
     if (!sheet) return NextResponse.json({ error: 'Sheet not found' }, { status: 404 })
 
     // Delete cells in this row
     await prisma.sheetCell.deleteMany({
-      where: { sheetId: params.id, row: rowIndex }
+      where: { sheetId: id, row: rIdx }
     })
 
     // Shift rows below
     await prisma.$executeRaw`
       UPDATE sheet_cells 
       SET row = row - 1 
-      WHERE sheet_id = ${params.id}::uuid AND row > ${rowIndex}
+      WHERE sheet_id = ${id}::uuid AND row > ${rIdx}
     `
 
     // Update rowCount
     const updated = await prisma.googleSheet.update({
-      where: { id: params.id },
+      where: { id: id },
       data: { rowCount: Math.max(1, sheet.rowCount - 1) }
     })
 
