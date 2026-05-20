@@ -8,6 +8,10 @@ export async function GET(_: NextRequest, { params }: Params) {
   const { error } = await getAuthPayload()
   if (error) return error
   const { userId } = await params
+  
+  // Validate UUID format
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!userId || !uuidRegex.test(userId)) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 })
 
   const permissions = await prisma.permission.findMany({ where: { userId } })
   return NextResponse.json(permissions.map((p) => p.navKey))
@@ -20,6 +24,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const { userId } = await params
+  
+  // Validate UUID format
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!userId || !uuidRegex.test(userId)) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 })
 
   const { permissions } = await req.json()
 

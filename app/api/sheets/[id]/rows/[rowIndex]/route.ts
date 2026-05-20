@@ -11,6 +11,7 @@ export async function DELETE(_: NextRequest, { params }: Params) {
   if (!uuidRegex.test(id)) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 })
 
   const rIdx = parseInt(rowIndexStr)
+  if (isNaN(rIdx)) return NextResponse.json({ error: 'Invalid row index' }, { status: 400 })
 
   const sheet = await prisma.googleSheet.findUnique({ where: { id } })
   if (!sheet) return NextResponse.json({ error: 'Sheet not found' }, { status: 404 })

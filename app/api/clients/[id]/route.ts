@@ -34,6 +34,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const { payload, error } = await getAuthPayload()
   if (error) return error
   const { id } = await params
+  
+  // Validate UUID format
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!id || !uuidRegex.test(id)) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 })
 
   const body = await req.json()
   const {
@@ -101,6 +105,11 @@ export async function DELETE(_: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const { id } = await params
+  
+  // Validate UUID format
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!id || !uuidRegex.test(id)) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 })
+
   await prisma.client.delete({ where: { id } })
   return NextResponse.json({ success: true })
 }

@@ -9,7 +9,7 @@ export async function GET(_: NextRequest, { params }: Params) {
   
   // Validate UUID format to prevent Prisma crash
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-  if (!uuidRegex.test(id)) {
+  if (!id || !uuidRegex.test(id)) {
     return NextResponse.json({ error: 'Invalid Sheet ID format' }, { status: 400 })
   }
 
@@ -30,9 +30,19 @@ export async function DELETE(_: NextRequest, { params }: Params) {
   if (error) return error
   const { id } = await params
 
-  await prisma.googleSheet.update({
-    where: { id },
-    data: { isDeleted: true, deletedBy: payload.userId as string },
-  })
-  return NextResponse.json({ success: true })
+  // Validate UUID format
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!id || !uuidRegex.test(id)) {
+    return NextResponse.json({ error: 'Invalid Sheet ID format' }, { status: 400 })
+  }
+
+  try {
+    await prisma.googleSheet.update({
+      where: { id },
+      data: { isDeleted: true, deletedBy: payload.userId as string },
+    })
+    return NextResponse.json({ success: true })
+  } catch (err) {
+    return NextResponse.json({ error: 'Failed to delete sheet' }, { status: 500 })
+  }
 }
