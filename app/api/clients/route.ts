@@ -34,7 +34,10 @@ export async function GET(req: NextRequest) {
       where,
       skip,
       take: limit,
-      orderBy: { createdAt: 'desc' },
+      orderBy: [
+        { activeEmergencyCount: 'desc' },
+        { createdAt: 'desc' }
+      ],
       include: {
         createdBy:      { select: { id: true, name: true } },
         assignedTo:     { select: { id: true, name: true } },

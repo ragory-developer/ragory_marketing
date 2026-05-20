@@ -118,6 +118,18 @@ export default function ClientsPage() {
   const [savingCall, setSavingCall] = useState(false)
   const [previousCalls, setPreviousCalls] = useState<any[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
+  
+  // Bulk SMS State
+  const [showBulkSmsModal, setShowBulkSmsModal] = useState(false)
+  const [selectedBulkClients, setSelectedBulkClients] = useState<Client[]>([])
+  const [bulkSmsText, setBulkSmsText] = useState('')
+  const [bulkSmsScheduledTime, setBulkSmsScheduledTime] = useState('')
+  const [bulkSmsLanguage, setBulkSmsLanguage] = useState<'english' | 'bangla'>('english')
+  const [sendingBulkSms, setSendingBulkSms] = useState(false)
+  const [bulkSearchQ, setBulkSearchQ] = useState('')
+  const [bulkFilterStatus, setBulkFilterStatus] = useState('')
+  const [bulkClients, setBulkClients] = useState<Client[]>([])
+  const [isBulkLoading, setIsBulkLoading] = useState(false)
 
   const handleFieldChange = (name: string, value: string) => {
     setForm(prev => ({ ...prev, [name]: value }))
@@ -369,6 +381,91 @@ export default function ClientsPage() {
     }
   }
 
+  const sendBulkSms = async () => {
+    if (selectedBulkClients.length === 0 || !bulkSmsText.trim()) {
+      toast.error('Please select clients and enter a message')
+      return
+    }
+    
+    setSendingBulkSms(true)
+    try {
+      // Prepare customized messages for each selected client
+      const messages = selectedBulkClients.map(client => {
+        let customizedMessage = bulkSmsText
+          .replace(/{name}/g, client.name)
+          .replace(/{shopName}/g, client.shopName || '')
+          .replace(/{area}/g, client.area || '')
+          .replace(/{district}/g, client.district || '')
+
+        return {
+          clientId: client.id,
+          to: client.phone,
+          message: customizedMessage
+        }
+      })
+
+      // Format scheduledDateTime to YYYY-MM-DD HH:mm:ss for MRAM API
+      let formattedSchedule = ''
+      if (bulkSmsScheduledTime) {
+        const d = new Date(bulkSmsScheduledTime)
+        const pad = (n: number) => n.toString().padStart(2, '0')
+        formattedSchedule = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:00`
+      }
+
+      const res = await fetch('/api/sms/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scheduledDateTime: formattedSchedule,
+          messages
+        })
+      })
+
+      if (res.ok) {
+        toast.success(`Successfully sent/scheduled ${messages.length} messages!`)
+        setShowBulkSmsModal(false)
+        setSelectedBulkClients([])
+        setBulkSmsText('')
+        load() // Refresh notes/activity
+      } else {
+        const data = await res.json()
+        toast.error(data.error || 'Failed to send bulk SMS')
+      }
+    } catch (err) {
+      console.error('Bulk SMS error:', err)
+      toast.error('Network error while sending bulk SMS')
+    } finally {
+      setSendingBulkSms(false)
+    }
+  }
+
+  const searchBulkClients = useCallback(async () => {
+    if (!showBulkSmsModal) return
+    setIsBulkLoading(true)
+    try {
+      const params = new URLSearchParams({ 
+        limit: '50', 
+        q: bulkSearchQ, 
+        ...(bulkFilterStatus && { status: bulkFilterStatus }) 
+      })
+      const res = await fetch(`/api/clients?${params}`)
+      if (res.ok) {
+        const data = await res.json()
+        setBulkClients(data.clients || [])
+      }
+    } catch (err) {
+      console.error('Bulk search error:', err)
+    } finally {
+      setIsBulkLoading(false)
+    }
+  }, [showBulkSmsModal, bulkSearchQ, bulkFilterStatus])
+
+  useEffect(() => {
+    if (showBulkSmsModal) {
+      searchBulkClients()
+    }
+  }, [searchBulkClients])
+
   const openCallModal = async (c: Client) => {
     setCallClient(c)
     setSelectedCallPhone(c.phone)
@@ -454,9 +551,14 @@ export default function ClientsPage() {
           <h1 style={{ fontSize:'24px', fontWeight:700, color:'white' }}>All Clients</h1>
           <p style={{ color:'#9ca3af', fontSize:'14px', marginTop:'4px' }}>Survey leads & marketing follow-ups · {total} total</p>
         </div>
-        <button onClick={openAdd} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'10px 20px', background:'#4f46e5', color:'white', border:'none', borderRadius:'8px', fontWeight:600, cursor:'pointer', fontSize:'14px' }}>
-          <Plus size={16} /> Add Client
-        </button>
+        <div style={{ display:'flex', gap:'12px' }}>
+          <button onClick={() => { setSelectedBulkClients([]); setBulkSmsText(''); setBulkSearchQ(''); setBulkFilterStatus(''); setShowBulkSmsModal(true); }} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'10px 20px', background:'rgba(16,185,129,0.1)', color:'#10b981', border:'1px solid rgba(16,185,129,0.3)', borderRadius:'8px', fontWeight:600, cursor:'pointer', fontSize:'14px' }}>
+            <MessageCircle size={16} /> Bulk Messaging
+          </button>
+          <button onClick={openAdd} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'10px 20px', background:'#4f46e5', color:'white', border:'none', borderRadius:'8px', fontWeight:600, cursor:'pointer', fontSize:'14px' }}>
+            <Plus size={16} /> Add Client
+          </button>
+        </div>
       </div>
 
       {/* Stats Bar - shows real totals from DB */}
@@ -681,13 +783,15 @@ export default function ClientsPage() {
         </div>
       )}
 
-      {/* Add/Edit Modal */}
       {showForm && (
-        <div className="modal-overlay" onClick={()=>setShowForm(false)}>
-          <div onClick={e=>e.stopPropagation()} style={{ background:'linear-gradient(135deg, rgba(30,27,75,0.75), rgba(17,24,39,0.85))', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', border:'1px solid rgba(99,102,241,0.25)', boxShadow:'0 25px 50px -12px rgba(0,0,0,0.5)', borderRadius:'16px', padding:'28px', width:'100%', maxWidth:'680px', maxHeight:'90vh', overflowY:'auto' }}>
-            {/* Form Content Omitted for brevity, assumed correctly handled by previous multi_replace */}
-            <h2 style={{ color:'white', fontSize:'18px', fontWeight:700, marginBottom:'20px' }}>{editing ? 'Edit Client' : 'Add New Client'}</h2>
-            <div className="form-grid-2" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'14px' }}>
+        <div className="modal-overlay" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', zIndex: 100 }}>
+          <div style={{ background: 'linear-gradient(135deg, rgba(30,27,75,0.95), rgba(17,24,39,0.98))', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(99,102,241,0.3)', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.8)', borderRadius: '24px', padding: '32px', width: '95%', maxWidth: '1000px', maxHeight: '95vh', overflowY: 'auto', position: 'relative', animation: 'modalIn 0.3s ease-out' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h2 style={{ color: 'white', fontSize: '20px', fontWeight: 800 }}>{editing ? 'Edit Client Profile' : 'Add New Client Entity'}</h2>
+              <button onClick={() => setShowForm(false)} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: '#9ca3af', cursor: 'pointer', padding: '8px', borderRadius: '10px' }}><X size={20} /></button>
+            </div>
+            <div className="form-grid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '18px' }}>
+
               <Field label="Full Name *" name="name" value={form.name} onChange={handleFieldChange} />
               <Field label="Shop Name" name="shopName" value={form.shopName} onChange={handleFieldChange} />
               <Field label="Phone *" name="phone" value={form.phone} onChange={handleFieldChange} />
@@ -811,18 +915,21 @@ export default function ClientsPage() {
                   )}
                 </div>
               </div>
-              <div style={{ gridColumn:'1/-1' }}>
-                <label style={{ fontSize:'11px', color:'#9ca3af', textTransform:'uppercase', fontWeight:600, letterSpacing:'0.05em', display:'block', marginBottom:'6px' }}>Address</label>
-                <textarea value={form.address} onChange={e=>handleFieldChange('address', e.target.value)} rows={2} className="input-field" style={{ fontSize:'14px', padding:'10px 12px', resize:'vertical', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.1)' }} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px', marginTop: '18px' }}>
+              <div>
+                <label style={{ fontSize: '11px', color: '#9ca3af', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em', display: 'block', marginBottom: '6px' }}>Detailed Address</label>
+                <textarea value={form.address} onChange={e => handleFieldChange('address', e.target.value)} rows={3} className="input-field" style={{ fontSize: '14px', padding: '10px 12px', resize: 'none', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)' }} />
               </div>
-              <div style={{ gridColumn:'1/-1' }}>
-                <label style={{ fontSize:'11px', color:'#9ca3af', textTransform:'uppercase', fontWeight:600, letterSpacing:'0.05em', display:'block', marginBottom:'6px' }}>Internal Notes</label>
-                <textarea value={form.notes} onChange={e=>handleFieldChange('notes', e.target.value)} rows={3} className="input-field" style={{ fontSize:'14px', padding:'10px 12px', resize:'vertical', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.1)' }} />
+              <div>
+                <label style={{ fontSize: '11px', color: '#9ca3af', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em', display: 'block', marginBottom: '6px' }}>Private Internal Notes</label>
+                <textarea value={form.notes} onChange={e => handleFieldChange('notes', e.target.value)} rows={3} className="input-field" style={{ fontSize: '14px', padding: '10px 12px', resize: 'none', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)' }} />
               </div>
             </div>
-            <div style={{ display:'flex', gap:'10px', justifyContent:'flex-end', marginTop:'20px' }}>
-              <button onClick={()=>setShowForm(false)} style={{ padding:'10px 20px', background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', color:'white', borderRadius:'8px', cursor:'pointer' }}>Cancel</button>
-              <button onClick={handleSave} disabled={saving} style={{ padding:'10px 24px', background:'#4f46e5', color:'white', border:'none', borderRadius:'8px', fontWeight:600, cursor:'pointer' }}>{saving ? 'Saving...' : editing ? 'Update' : 'Add Client'}</button>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '20px' }}>
+              <button onClick={() => setShowForm(false)} style={{ padding: '10px 20px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', borderRadius: '8px', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={handleSave} disabled={saving} style={{ padding: '10px 24px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}>{saving ? 'Saving...' : editing ? 'Update' : 'Add Client'}</button>
             </div>
           </div>
         </div>
@@ -830,8 +937,8 @@ export default function ClientsPage() {
 
       {/* SMS Modal */}
       {showSmsModal && smsClient && (
-        <div className="modal-overlay" onClick={()=>setShowSmsModal(false)}>
-          <div className="sms-modal-inner" onClick={e=>e.stopPropagation()} style={{ background:'linear-gradient(135deg, rgba(30,27,75,0.9), rgba(17,24,39,0.95))', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', border:'1px solid rgba(16,185,129,0.3)', boxShadow:'0 25px 50px -12px rgba(0,0,0,0.6)', borderRadius:'20px', width:'100%', maxWidth:'850px', display:'flex', overflow:'hidden' }}>
+        <div className="modal-overlay" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', zIndex: 100 }}>
+          <div className="sms-modal-inner" style={{ background: 'linear-gradient(135deg, rgba(30,27,75,0.9), rgba(17,24,39,0.95))', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(16,185,129,0.3)', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.6)', borderRadius: '20px', width: '100%', maxWidth: '850px', display: 'flex', overflow: 'hidden', animation: 'modalIn 0.3s ease-out' }}>
 
             {/* Left Side: Client Details */}
             <div className="sms-modal-left" style={{ flex:1, padding:'32px', background:'rgba(0,0,0,0.2)', borderRight:'1px solid rgba(255,255,255,0.05)' }}>
@@ -976,8 +1083,8 @@ export default function ClientsPage() {
       )}
       {/* Emergency Notes Modal */}
       {showEmergencyModal && emergencyClient && (
-        <div className="modal-overlay" onClick={()=>setShowEmergencyModal(false)} style={{ backdropFilter:'blur(25px)', background:'rgba(0,0,0,0.6)' }}>
-          <div className="glass-panel" onClick={e=>e.stopPropagation()} 
+        <div className="modal-overlay" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(25px)', zIndex: 100 }}>
+          <div className="glass-panel" 
             style={{ 
               width:'95%', maxWidth:'1200px', height:'auto', maxHeight:'90vh', padding:'0', position:'relative', 
               border:'1px solid rgba(255,255,255,0.1)', animation:'modalIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)',
@@ -1166,8 +1273,8 @@ export default function ClientsPage() {
 
       {/* Call Modal */}
       {showCallModal && callClient && (
-        <div className="modal-overlay" onClick={()=>!isCalling && setShowCallModal(false)} style={{ backdropFilter:'blur(20px)', background:'rgba(15, 23, 42, 0.4)' }}>
-          <div className="call-modal-inner" onClick={e=>e.stopPropagation()} 
+        <div className="modal-overlay" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(20px)', zIndex: 100 }}>
+          <div className="call-modal-inner" 
             style={{ 
               width:'95%', maxWidth:'1080px', height:'auto', maxHeight:'92vh', padding:'0', borderRadius:'32px',
               display:'flex', overflow:'hidden', border:'1px solid rgba(255,255,255,0.12)',
@@ -1341,6 +1448,198 @@ export default function ClientsPage() {
       )}
 
 
+      {/* Bulk SMS Modal */}
+      {showBulkSmsModal && (
+        <div className="modal-overlay" style={{ background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(12px)', zIndex: 110 }}>
+          <div className="bulk-modal-container">
+            
+            {/* Left: Drafting Area */}
+            <div className="bulk-pane-left">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                <h2 style={{ color: 'white', fontSize: '20px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <MessageCircle size={24} color="#10b981" /> Bulk SMS Engine
+                </h2>
+                <div style={{ padding: '4px 12px', background: 'rgba(16,185,129,0.1)', color: '#10b981', borderRadius: '20px', fontSize: '11px', fontWeight: 800 }}>V2.0 PRO</div>
+              </div>
+
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em', display: 'block', marginBottom: '10px' }}>Message Attributes</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {['name', 'shopName', 'area', 'district'].map(tag => (
+                    <button key={tag} onClick={() => setBulkSmsText(prev => prev + `{${tag}}`)} style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#e2e8f0', fontSize: '11px', cursor: 'pointer' }}>
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <textarea 
+                value={bulkSmsText} 
+                onChange={e => setBulkSmsText(e.target.value)}
+                placeholder="Type your message here... Use {name} for personalization."
+                style={{ flex: 1, background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', color: 'white', padding: '20px', fontSize: '15px', resize: 'none', marginBottom: '12px', outline: 'none' }}
+              />
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+                <span style={{ fontSize: '12px', color: '#94a3b8' }}>
+                  {bulkSmsText.length} characters • {bulkSmsLanguage === 'english' ? Math.max(1, Math.ceil(bulkSmsText.length/160)) : Math.max(1, Math.ceil(bulkSmsText.length/70))} part(s)
+                </span>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                   <button onClick={() => setBulkSmsLanguage('english')} style={{ fontSize: '10px', background: bulkSmsLanguage === 'english' ? '#10b981' : 'transparent', color: 'white', border: '1px solid rgba(255,255,255,0.1)', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}>EN</button>
+                   <button onClick={() => setBulkSmsLanguage('bangla')} style={{ fontSize: '10px', background: bulkSmsLanguage === 'bangla' ? '#10b981' : 'transparent', color: 'white', border: '1px solid rgba(255,255,255,0.1)', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}>BN</button>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '24px' }}>
+                <label style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700, marginBottom: '8px', display: 'block' }}>Schedule Launch (Optional)</label>
+                <input 
+                  type="datetime-local" 
+                  value={bulkSmsScheduledTime} 
+                  onChange={e => setBulkSmsScheduledTime(e.target.value)}
+                  style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', padding: '12px', borderRadius: '10px', colorScheme: 'dark' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: 'auto' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>Recipients</div>
+                  <div style={{ fontSize: '18px', color: 'white', fontWeight: 800 }}>{selectedBulkClients.length} Target(s)</div>
+                </div>
+                <button 
+                  onClick={sendBulkSms}
+                  disabled={sendingBulkSms || selectedBulkClients.length === 0 || !bulkSmsText.trim()}
+                  style={{ padding: '16px 32px', background: '#10b981', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 700, fontSize: '15px', cursor: 'pointer', boxShadow: '0 10px 20px rgba(16,185,129,0.2)' }}
+                >
+                  {sendingBulkSms ? 'Launching Campaign...' : 'Launch Campaign'}
+                </button>
+              </div>
+            </div>
+
+            <div className="bulk-pane-right">
+              <div style={{ padding: '32px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.01)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <h3 style={{ color: 'white', fontSize: '16px', fontWeight: 700 }}>Select Targets</h3>
+                  <button onClick={() => setShowBulkSmsModal(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><X size={20}/></button>
+                </div>
+                
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <div style={{ flex: 1, position: 'relative' }}>
+                    <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                    <input 
+                      placeholder="Filter by name, mobile, or shop..." 
+                      value={bulkSearchQ}
+                      onChange={e => setBulkSearchQ(e.target.value)}
+                      style={{ width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '10px 10px 10px 36px', color: 'white', fontSize: '13px' }}
+                    />
+                  </div>
+                  <select 
+                    value={bulkFilterStatus}
+                    onChange={e => setBulkFilterStatus(e.target.value)}
+                    style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: '#94a3b8', padding: '0 12px', fontSize: '12px' }}
+                  >
+                    <option value="">All Regions</option>
+                    {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+              </div>
+              
+              {/* Internal search logic moved for better control */}
+              {(() => {
+                const allVisibleSelected = bulkClients.length > 0 && bulkClients.every(c => selectedBulkClients.some(sc => sc.id === c.id));
+                
+                return (
+                  <>
+                    <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+                      {isBulkLoading ? (
+                        <div style={{ display:'flex', justifyContent:'center', padding:'40px' }}><RefreshCw size={24} className="spin" color="#10b981" /></div>
+                      ) : (
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                              <th style={{ padding: '12px', textAlign: 'left' }}>
+                                <input 
+                                  type="checkbox" 
+                                  checked={allVisibleSelected} 
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedBulkClients(prev => {
+                                        const newBatch = bulkClients.filter(bc => !prev.some(p => p.id === bc.id));
+                                        return [...prev, ...newBatch];
+                                      });
+                                    } else {
+                                      const visibleIds = bulkClients.map(c => c.id);
+                                      setSelectedBulkClients(prev => prev.filter(c => !visibleIds.includes(c.id)));
+                                    }
+                                  }}
+                                  style={{ width:'16px', height:'16px', cursor:'pointer' }}
+                                />
+                              </th>
+                              <th style={{ padding: '12px', textAlign: 'left', color: '#94a3b8', fontSize: '11px', fontWeight: 600 }}>RECIPIENT</th>
+                              <th style={{ padding: '12px', textAlign: 'left', color: '#94a3b8', fontSize: '11px', fontWeight: 600 }}>DISTRICT / AREA</th>
+                              <th style={{ padding: '12px', textAlign: 'left', color: '#94a3b8', fontSize: '11px', fontWeight: 600 }}>STATUS</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {bulkClients.map(client => {
+                              const isSelected = selectedBulkClients.some(sc => sc.id === client.id);
+                              return (
+                                <tr key={client.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)', background: isSelected ? 'rgba(16,185,129,0.06)' : 'transparent', transition:'all 0.2s' }}>
+                                  <td style={{ padding: '12px' }}>
+                                    <input 
+                                      type="checkbox" 
+                                      checked={isSelected}
+                                      onChange={(e) => {
+                                        if (e.target.checked) setSelectedBulkClients(prev => [...prev, client]);
+                                        else setSelectedBulkClients(prev => prev.filter(c => c.id !== client.id));
+                                      }}
+                                      style={{ width:'16px', height:'16px', cursor:'pointer' }}
+                                    />
+                                  </td>
+                                  <td style={{ padding: '12px' }}>
+                                    <div style={{ color: 'white', fontWeight: 600, fontSize: '13px' }}>{client.name}</div>
+                                    <div style={{ color: '#64748b', fontSize: '11px' }}>{client.phone}</div>
+                                  </td>
+                                  <td style={{ padding: '12px', color: '#94a3b8', fontSize: '12px' }}>
+                                    {client.district} {client.area ? ` / ${client.area}` : ''}
+                                  </td>
+                                  <td style={{ padding: '12px' }}>
+                                    <span style={{ fontSize: '10px', color: STATUS_COLORS[client.status], background: STATUS_COLORS[client.status]+'15', padding: '2px 8px', borderRadius: '4px', fontWeight: 800 }}>{client.status}</span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                            {bulkClients.length === 0 && (
+                              <tr>
+                                <td colSpan={4} style={{ padding:'40px', textAlign:'center', color:'#64748b', fontSize:'14px' }}>No clients found matching your search.</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                    
+                    <div style={{ padding: '20px 32px', background: 'rgba(255,255,255,0.01)', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ fontSize: '12px', color: '#94a3b8' }}>
+                         <span style={{ color:'#10b981', fontWeight:700 }}>{selectedBulkClients.length}</span> targets currently selected
+                      </div>
+                      <div style={{ display: 'flex', gap: '15px' }}>
+                         <button onClick={() => {
+                            setSelectedBulkClients(prev => {
+                               const newBatch = bulkClients.filter(bc => !prev.some(p => p.id === bc.id));
+                               return [...prev, ...newBatch];
+                            });
+                         }} style={{ background: 'none', border: 'none', color: '#10b981', fontSize: '12px', fontWeight: 700, cursor: 'pointer', opacity: bulkClients.length > 0 ? 1 : 0.5 }}>SELECT ALL VISIBLE</button>
+                         <button onClick={() => setSelectedBulkClients([])} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '12px', fontWeight: 700, cursor: 'pointer', opacity: selectedBulkClients.length > 0 ? 1 : 0.5 }}>CLEAR ALL SELECTIONS</button>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   )
 }

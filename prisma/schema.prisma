@@ -115,6 +115,7 @@ model Client {
   notes             String?       @db.Text
   rating            Int           @default(0)
   facebookUrl       String?       @map("facebook_url")
+  activeEmergencyCount Int           @default(0) @map("active_emergency_count")
 
   marketId          String?       @map("market_id") @db.Uuid
   market            Market?       @relation(fields: [marketId], references: [id])

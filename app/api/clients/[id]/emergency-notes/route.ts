@@ -32,15 +32,21 @@ export async function POST(req: NextRequest, { params }: Params) {
   const { content, priority } = await req.json()
   if (!content) return NextResponse.json({ error: 'Content required' }, { status: 400 })
 
-  const note = await prisma.emergencyNote.create({
-    data: {
-      clientId: id,
-      content,
-      priority: priority || 'MEDIUM',
-      authorId: payload.userId as string,
-    },
-    include: { author: { select: { id: true, name: true } } },
-  })
+  const [note] = await prisma.$transaction([
+    prisma.emergencyNote.create({
+      data: {
+        clientId: id,
+        content,
+        priority: priority || 'MEDIUM',
+        authorId: payload.userId as string,
+      },
+      include: { author: { select: { id: true, name: true } } },
+    }),
+    prisma.client.update({
+      where: { id },
+      data: { activeEmergencyCount: { increment: 1 } }
+    })
+  ])
   return NextResponse.json(note)
 }
 
@@ -59,7 +65,15 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  await prisma.emergencyNote.delete({ where: { id: noteId } })
+  await prisma.$transaction([
+    prisma.emergencyNote.delete({ where: { id: noteId } }),
+    ...(note.isDone ? [] : [
+      prisma.client.update({
+        where: { id: note.clientId },
+        data: { activeEmergencyCount: { decrement: 1 } }
+      })
+    ])
+  ])
   return NextResponse.json({ success: true })
 }
 
@@ -79,16 +93,29 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (!canUncheck) return NextResponse.json({ error: 'Only admins can uncheck completed tasks' }, { status: 403 })
   }
 
-  const updated = await prisma.emergencyNote.update({
-    where: { id: noteId },
-    data: {
-      isDone,
-      doneById: isDone ? payload.userId as string : null,
-    },
-    include: {
-      author: { select: { id: true, name: true } },
-      doneBy: { select: { id: true, name: true } },
-    },
+  const updated = await prisma.$transaction(async (tx) => {
+    const isChanging = note.isDone !== isDone;
+    
+    const u = await tx.emergencyNote.update({
+      where: { id: noteId },
+      data: {
+        isDone,
+        doneById: isDone ? payload.userId as string : null,
+      },
+      include: {
+        author: { select: { id: true, name: true } },
+        doneBy: { select: { id: true, name: true } },
+      },
+    })
+
+    if (isChanging) {
+      await tx.client.update({
+        where: { id: note.clientId },
+        data: { activeEmergencyCount: { [isDone ? 'decrement' : 'increment']: 1 } }
+      })
+    }
+
+    return u;
   })
   return NextResponse.json(updated)
 }
