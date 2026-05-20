@@ -87,10 +87,10 @@ export async function POST(req: NextRequest) {
         priority:         priority         || 'MEDIUM',
         source:           source           || null,
         notes:            notes            || null,
-        marketId:         marketId         || null,
+        marketId:         (marketId && marketId.trim() !== "") ? marketId : null,
         facebookUrl:      facebookUrl      || null,
         createdById:      payload.userId as string,
-        assignedToId:     assignedToId     || null,
+        assignedToId:     (assignedToId && assignedToId.trim() !== "") ? assignedToId : null,
       },
       include: {
         createdBy: { select: { id: true, name: true } },
