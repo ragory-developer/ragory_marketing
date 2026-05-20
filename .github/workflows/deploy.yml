@@ -12,4 +12,6 @@ jobs:
     steps:
       - name: Trigger Coolify Deployment
         run: |
-          curl -X GET "https://coolify.ragory.tech/api/v1/deploy?uuid=q84wk80000okcwo04g40g888&force=false"
+          response=$(curl -s -o response.txt -w "%{http_code}" -X POST "https://coolify.ragory.tech/api/v1/deploy?uuid=q84wk80000okcwo04g40g888&force=false")
+          echo "HTTP Status: $response"
+          cat response.txt
