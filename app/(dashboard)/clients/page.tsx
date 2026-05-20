@@ -1109,10 +1109,10 @@ export default function ClientsPage() {
             </div>
 
             {/* Main Content Area (Two Columns) */}
-            <div style={{ display:'flex', flex:1, overflow:'hidden' }}>
+            <div className="modern-modal-inner">
               
               {/* Left Column: Form & Analytics */}
-              <div style={{ flex:'0 0 420px', padding:'40px', borderRight:'1px solid rgba(255,255,255,0.08)', background:'rgba(0,0,0,0.2)', overflowY:'auto', scrollbarWidth:'none' }}>
+              <div className="modern-modal-left" style={{ padding:'40px', background:'rgba(0,0,0,0.2)', overflowY:'auto', scrollbarWidth:'none' }}>
                 
                 {/* Resolution Intelligence Card */}
                 {emergencyNotes.length > 0 && (
@@ -1173,7 +1173,7 @@ export default function ClientsPage() {
               </div>
 
               {/* Right Column: Live Stream */}
-              <div style={{ flex:1, display:'flex', flexDirection:'column', background:'rgba(0,0,0,0.05)', overflow:'hidden' }}>
+              <div className="modern-modal-right" style={{ background:'rgba(0,0,0,0.05)', overflow:'hidden' }}>
                 <div style={{ padding:'32px 48px 24px 48px', display:'flex', justifyContent:'space-between', alignItems:'center', background:'rgba(0,0,0,0.1)', borderBottom:'1px solid rgba(255,255,255,0.03)' }}>
                   <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
                     <h3 style={{ fontSize:'14px', fontWeight:900, color:'white', textTransform:'uppercase', letterSpacing:'0.15em' }}>Work Stream</h3>

@@ -1,0 +1,15 @@
+name: Auto Deploy to Coolify
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Coolify Deployment
+        run: |
+          curl -X GET "https://coolify.ragory.tech/api/v1/deploy?uuid=q84wk80000okcwo04g40g888&force=false"
