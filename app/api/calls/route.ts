@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   
   const skip = (page - 1) * limit
 
-  const where: any = {}
+  const where: Record<string, unknown> = {}
   if (clientId) where.clientId = clientId
   if (q) {
     where.OR = [

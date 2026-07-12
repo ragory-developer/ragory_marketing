@@ -190,51 +190,160 @@ export default function ClientDetailsPage() {
               <div style={{ fontSize:'14px' }}>No activity logged yet</div>
             </div>
           ) : (
-            <div style={{ flex:1, overflowY:'auto' }}>
-              {/* Table header */}
-              <div style={{ display:'grid', gridTemplateColumns:'110px 1fr 80px 160px', gap:'16px', padding:'12px 24px', background:'rgba(0,0,0,0.3)', borderBottom:'1px solid rgba(255,255,255,0.05)', position:'sticky', top:0, zIndex:10 }}>
-                {['Type','Note / Content','Score','Date & Author'].map(h=>(
-                  <div key={h} style={{ fontSize:'11px', color:'#9ca3af', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em' }}>{h}</div>
-                ))}
-              </div>
+            <div style={{ flex: 1, overflowY: 'auto', position: 'relative', padding: '24px 32px' }}>
+              {/* Vertical line track */}
+              <div style={{
+                position: 'absolute',
+                left: '43px', // 32px padding + 11px (half of 22px dot width)
+                top: '24px',
+                bottom: '24px',
+                width: '2px',
+                background: 'linear-gradient(to bottom, rgba(99, 102, 241, 0.3) 0%, rgba(255, 255, 255, 0.03) 100%)',
+                zIndex: 0
+              }} />
+
               {/* Rows */}
-              {client.clientNotes?.map((n:any, idx:number) => {
-                const col = NOTE_TYPE_COLORS[n.type] || '#6366f1'
-                const isAuto = n.content.includes('changed from')
-                const ratingMatch = n.content.match(/\[Rating: (\d+)\/10\]/)
-                const rating = ratingMatch ? parseInt(ratingMatch[1]) : null
-                const noteContent = ratingMatch ? n.content.replace(/ \[Rating: \d+\/10\]/, '') : n.content
-                return (
-                  <div key={n.id} className="anim-row"
-                    style={{ animationDelay: `${idx * 0.05 + 0.2}s`, display:'grid', gridTemplateColumns:'110px 1fr 80px 160px', gap:'16px', padding:'20px 24px', borderBottom:'1px solid rgba(255,255,255,0.03)', background: isAuto ? 'rgba(0,0,0,0.2)' : 'transparent', alignItems:'center', transition:'all 0.2s ease' }}
-                    onMouseEnter={e=>(e.currentTarget.style.background='linear-gradient(90deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.05) 50%, rgba(255,255,255,0.02) 100%)')}
-                    onMouseLeave={e=>(e.currentTarget.style.background= isAuto?'rgba(0,0,0,0.2)':'transparent')}>
-                    {/* Type badge */}
-                    <div>
-                      <span style={{ padding:'3px 8px', borderRadius:'6px', fontSize:'11px', fontWeight:700, background:col+'22', color:col, border:`1px solid ${col}33`, textTransform:'uppercase', letterSpacing:'0.04em', display:'inline-flex', alignItems:'center', gap:'4px' }}>
-                        {isAuto?'⚙':'●'} {n.type}
-                      </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', position: 'relative', zIndex: 1 }}>
+                {client.clientNotes?.map((n: any, idx: number) => {
+                  const isAuto = n.content.includes('changed from') || n.content.includes('[Reminder')
+                  const ratingMatch = n.content.match(/\[Rating: (\d+)\/10\]/)
+                  const rating = ratingMatch ? parseInt(ratingMatch[1]) : null
+                  const noteContent = ratingMatch ? n.content.replace(/ \[Rating: \d+\/10\]/, '') : n.content
+
+                  // Check custom emojis or prefixes for colors & icons
+                  let col = NOTE_TYPE_COLORS[n.type] || '#6366f1'
+                  let icon = '●'
+                  if (n.content.includes('📌')) {
+                    col = '#ef4444' // red for reminder created
+                    icon = '📌'
+                  } else if (n.content.includes('✅')) {
+                    col = '#10b981' // green for resolved
+                    icon = '✅'
+                  } else if (n.content.includes('🔄')) {
+                    col = '#3b82f6' // blue for reopen
+                    icon = '🔄'
+                  } else if (n.content.includes('🗑️')) {
+                    col = '#6b7280' // grey for delete
+                    icon = '🗑️'
+                  } else if (isAuto) {
+                    col = '#818cf8' // system audit notes
+                    icon = '⚙️'
+                  } else if (n.type === 'CALL') {
+                    icon = '📞'
+                  } else if (n.type === 'VISIT') {
+                    icon = '🏪'
+                  } else if (n.type === 'SMS') {
+                    icon = '💬'
+                  } else if (n.type === 'COMPLAINT') {
+                    icon = '⚠️'
+                  } else if (n.type === 'FOLLOW_UP') {
+                    icon = '🗓️'
+                  }
+
+                  return (
+                    <div key={n.id} className="anim-row" style={{
+                      animationDelay: `${idx * 0.05 + 0.2}s`,
+                      position: 'relative',
+                      paddingLeft: '36px',
+                      zIndex: 1
+                    }}>
+                      {/* Timeline Dot */}
+                      <div style={{
+                        position: 'absolute',
+                        left: '0px',
+                        top: '4px',
+                        width: '22px',
+                        height: '22px',
+                        borderRadius: '50%',
+                        background: 'rgba(15, 23, 42, 0.95)',
+                        border: `2px solid ${col}`,
+                        boxShadow: `0 0 10px ${col}33`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '11px',
+                        color: col,
+                        zIndex: 2
+                      }}>
+                        {icon}
+                      </div>
+
+                      {/* Timeline Card */}
+                      <div style={{
+                        background: isAuto ? 'rgba(255, 255, 255, 0.02)' : 'rgba(255, 255, 255, 0.04)',
+                        border: isAuto ? '1px solid rgba(255, 255, 255, 0.05)' : '1px solid rgba(255, 255, 255, 0.08)',
+                        borderRadius: '16px',
+                        padding: '16px 20px',
+                        transition: 'all 0.2s ease',
+                        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)'
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)'
+                        e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.12)'
+                        e.currentTarget.style.transform = 'translateX(4px)'
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.background = isAuto ? 'rgba(255, 255, 255, 0.02)' : 'rgba(255, 255, 255, 0.04)'
+                        e.currentTarget.style.borderColor = isAuto ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.08)'
+                        e.currentTarget.style.transform = 'none'
+                      }}>
+                        {/* Card Header */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', gap: '12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 800, color: col, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              {n.type}
+                            </span>
+                            <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'rgba(255, 255, 255, 0.2)' }} />
+                            <span style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.4)' }}>
+                              logged by <strong style={{ color: 'rgba(255, 255, 255, 0.7)' }}>{n.author?.name || 'System'}</strong>
+                            </span>
+                          </div>
+                          
+                          {/* Timestamp */}
+                          <div style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.35)', textAlign: 'right' }}>
+                            {new Date(n.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at{' '}
+                            {new Date(n.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </div>
+
+                        {/* Card Body */}
+                        <div style={{
+                          color: isAuto ? 'rgba(255, 255, 255, 0.65)' : 'white',
+                          fontSize: '14px',
+                          lineHeight: '1.6',
+                          fontStyle: isAuto ? 'italic' : 'normal',
+                          wordBreak: 'break-word',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'flex-start',
+                          gap: '16px'
+                        }}>
+                          <div style={{ flex: 1 }}>{noteContent}</div>
+                          
+                          {/* Rating Display */}
+                          {rating && (
+                            <div style={{
+                              flexShrink: 0,
+                              background: rating >= 8 ? 'rgba(16, 185, 129, 0.15)' : rating >= 5 ? 'rgba(245, 158, 11, 0.15)' : 'rgba(99, 102, 241, 0.15)',
+                              border: `1px solid ${rating >= 8 ? '#10b981' : rating >= 5 ? '#f59e0b' : '#6366f1'}33`,
+                              padding: '4px 10px',
+                              borderRadius: '8px',
+                              fontSize: '13px',
+                              fontWeight: 700,
+                              color: rating >= 8 ? '#10b981' : rating >= 5 ? '#f59e0b' : '#818cf8',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '2px'
+                            }}>
+                              ⭐ {rating}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    {/* Note content */}
-                    <div style={{ color: isAuto?'#9ca3af':'#f3f4f6', fontSize:'14px', lineHeight:'1.5', fontStyle: isAuto?'italic':'normal' }}>
-                      {noteContent}
-                    </div>
-                    {/* Score */}
-                    <div>
-                      {rating ? (
-                        <span style={{ fontWeight:700, fontSize:'16px', color: rating>=8?'#10b981':rating>=5?'#f59e0b':'#818cf8' }}>
-                          {rating}<span style={{ fontSize:'11px', color:'#6b7280', fontWeight:500 }}>/10</span>
-                        </span>
-                      ) : <span style={{ color:'#4b5563', fontSize:'14px' }}>—</span>}
-                    </div>
-                    {/* Date + Author */}
-                    <div style={{ color:'#6b7280', fontSize:'12px', lineHeight:'1.5' }}>
-                      <div style={{ color:'#d1d5db' }}>{new Date(n.createdAt).toLocaleDateString('en',{day:'2-digit',month:'short',year:'numeric'})}</div>
-                      <div style={{ color:'#6b7280', fontSize:'11px' }}>{new Date(n.createdAt).toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit'})} · {n.author?.name}</div>
-                    </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
           )}
         </div>

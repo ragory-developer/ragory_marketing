@@ -78,6 +78,17 @@ export default function ClientsPage() {
   const [quickNoteText, setQuickNoteText] = useState('')
   const [quickNoteType, setQuickNoteType] = useState('CALL')
 
+  // Advanced Filters (Phase 6)
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
+  const [assignedToIdF, setAssignedToIdF] = useState('')
+  const [marketIdF, setMarketIdF]         = useState('')
+  const [dateFromF, setDateFromF]         = useState('')
+  const [dateToF, setDateToF]             = useState('')
+  const [hasEmergencyF, setHasEmergencyF] = useState(false)
+  const [sortByF, setSortByF]             = useState('')
+  const [sortOrderF, setSortOrderF]       = useState<'asc'|'desc'>('desc')
+  const [users, setUsers]                 = useState<{id:string;name:string}[]>([])
+
   const [markets, setMarkets] = useState<{id:string, name:string}[]>([])
   const [userRole, setUserRole] = useState('')
   const [marketSearch, setMarketSearch] = useState('')
@@ -137,7 +148,16 @@ export default function ClientsPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const params = new URLSearchParams({ page: String(page), limit: '20', q, ...(statusF && { status: statusF }), ...(priorityF && { priority: priorityF }) })
+    const params = new URLSearchParams({ page: String(page), limit: '20', q })
+    if (statusF)       params.set('status',       statusF)
+    if (priorityF)     params.set('priority',     priorityF)
+    if (assignedToIdF) params.set('assignedToId', assignedToIdF)
+    if (marketIdF)     params.set('marketId',     marketIdF)
+    if (dateFromF)     params.set('dateFrom',     dateFromF)
+    if (dateToF)       params.set('dateTo',       dateToF)
+    if (hasEmergencyF) params.set('hasEmergency', 'true')
+    if (sortByF)       params.set('sort',         sortByF)
+    if (sortOrderF)    params.set('order',        sortOrderF)
     const res = await fetch(`/api/clients?${params}`)
     const data = await res.json()
     setClients(data.clients || [])
@@ -146,7 +166,7 @@ export default function ClientsPage() {
     // compute status counts from full response
     if (data.statusCounts) setStatusCounts(data.statusCounts)
     setLoading(false)
-  }, [page, q, statusF, priorityF])
+  }, [page, q, statusF, priorityF, assignedToIdF, marketIdF, dateFromF, dateToF, hasEmergencyF, sortByF, sortOrderF])
 
   const fetchMarkets = async () => {
     try {
@@ -170,6 +190,8 @@ export default function ClientsPage() {
     load()
     fetchMarkets()
     fetchMe()
+    // Fetch users for assign-to filter
+    fetch('/api/users').then(r => r.json()).then(u => setUsers(Array.isArray(u) ? u : [])).catch(() => {})
 
     // Click outside listener for Market dropdown
     const handleClickOutside = (e: MouseEvent) => {
@@ -584,15 +606,80 @@ export default function ClientsPage() {
           <option value="">All Priority</option>
           {PRIORITIES.map(p=><option key={p} value={p}>{p}</option>)}
         </select>
-        {(q||statusF||priorityF) && (
-          <button onClick={()=>{setQ('');setStatusF('');setPriorityF('');setPage(1)}} style={{ display:'flex', alignItems:'center', gap:'4px', padding:'8px 12px', background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.3)', color:'#ef4444', borderRadius:'8px', cursor:'pointer', fontSize:'13px' }}>
-            <X size={14} /> Clear
+        {/* Advanced Filters Toggle */}
+        <button
+          onClick={() => setShowAdvancedFilters(v => !v)}
+          style={{ display:'flex', alignItems:'center', gap:'6px', padding:'8px 14px', background: showAdvancedFilters ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.06)', border: showAdvancedFilters ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(255,255,255,0.1)', color: showAdvancedFilters ? '#a5b4fc' : '#9ca3af', borderRadius:'8px', cursor:'pointer', fontSize:'13px', fontWeight:600, transition:'all 0.2s' }}
+        >
+          <Filter size={14} /> Filters {(assignedToIdF || marketIdF || dateFromF || dateToF || hasEmergencyF || sortByF) ? `(${[assignedToIdF,marketIdF,dateFromF,dateToF,hasEmergencyF?'1':'',sortByF].filter(Boolean).length})` : ''}
+        </button>
+        {(q||statusF||priorityF||assignedToIdF||marketIdF||dateFromF||dateToF||hasEmergencyF||sortByF) && (
+          <button onClick={()=>{setQ('');setStatusF('');setPriorityF('');setAssignedToIdF('');setMarketIdF('');setDateFromF('');setDateToF('');setHasEmergencyF(false);setSortByF('');setSortOrderF('desc');setPage(1)}} style={{ display:'flex', alignItems:'center', gap:'4px', padding:'8px 12px', background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.3)', color:'#ef4444', borderRadius:'8px', cursor:'pointer', fontSize:'13px' }}>
+            <X size={14} /> Clear All
           </button>
         )}
         <button onClick={load} style={{ display:'flex', alignItems:'center', gap:'4px', padding:'8px 12px', background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', color:'#9ca3af', borderRadius:'8px', cursor:'pointer', fontSize:'13px' }}>
           <RefreshCw size={14} />
         </button>
       </div>
+
+      {/* Advanced Filters Panel */}
+      {showAdvancedFilters && (
+        <div style={{ background:'rgba(15,23,42,0.85)', backdropFilter:'blur(20px)', border:'1px solid rgba(99,102,241,0.2)', borderRadius:'16px', padding:'20px', display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))', gap:'14px' }}>
+          {/* Assigned To */}
+          <div>
+            <label style={{ fontSize:'10px', color:'#9ca3af', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.06em', display:'block', marginBottom:'5px' }}>Assigned To</label>
+            <select value={assignedToIdF} onChange={e=>{setAssignedToIdF(e.target.value);setPage(1)}} className="input-field" style={{ fontSize:'12px', padding:'6px 10px' }}>
+              <option value="">Anyone</option>
+              {users.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+          </div>
+          {/* Market */}
+          <div>
+            <label style={{ fontSize:'10px', color:'#9ca3af', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.06em', display:'block', marginBottom:'5px' }}>Market</label>
+            <select value={marketIdF} onChange={e=>{setMarketIdF(e.target.value);setPage(1)}} className="input-field" style={{ fontSize:'12px', padding:'6px 10px' }}>
+              <option value="">All Markets</option>
+              {markets.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+          </div>
+          {/* Date From */}
+          <div>
+            <label style={{ fontSize:'10px', color:'#9ca3af', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.06em', display:'block', marginBottom:'5px' }}>Added From</label>
+            <input type="date" value={dateFromF} onChange={e=>{setDateFromF(e.target.value);setPage(1)}} className="input-field" style={{ fontSize:'12px', padding:'6px 10px' }} />
+          </div>
+          {/* Date To */}
+          <div>
+            <label style={{ fontSize:'10px', color:'#9ca3af', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.06em', display:'block', marginBottom:'5px' }}>Added To</label>
+            <input type="date" value={dateToF} onChange={e=>{setDateToF(e.target.value);setPage(1)}} className="input-field" style={{ fontSize:'12px', padding:'6px 10px' }} />
+          </div>
+          {/* Sort */}
+          <div>
+            <label style={{ fontSize:'10px', color:'#9ca3af', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.06em', display:'block', marginBottom:'5px' }}>Sort By</label>
+            <select value={sortByF} onChange={e=>{setSortByF(e.target.value);setPage(1)}} className="input-field" style={{ fontSize:'12px', padding:'6px 10px' }}>
+              <option value="">Default</option>
+              <option value="createdAt">Date Added</option>
+              <option value="name">Name</option>
+              <option value="lastFollowUpAt">Last Follow-up</option>
+              <option value="rating">Rating</option>
+            </select>
+          </div>
+          {/* Order */}
+          <div>
+            <label style={{ fontSize:'10px', color:'#9ca3af', textTransform:'uppercase', fontWeight:700, letterSpacing:'0.06em', display:'block', marginBottom:'5px' }}>Order</label>
+            <select value={sortOrderF} onChange={e=>{setSortOrderF(e.target.value as 'asc'|'desc');setPage(1)}} className="input-field" style={{ fontSize:'12px', padding:'6px 10px' }}>
+              <option value="desc">Newest First</option>
+              <option value="asc">Oldest First</option>
+            </select>
+          </div>
+          {/* Has Emergency */}
+          <div style={{ display:'flex', alignItems:'center', gap:'10px', paddingTop:'20px' }}>
+            <label style={{ display:'flex', alignItems:'center', gap:'8px', cursor:'pointer', fontSize:'13px', color: hasEmergencyF ? '#ef4444' : '#9ca3af', fontWeight: hasEmergencyF ? 700 : 500, transition:'color 0.2s' }}>
+              <input type="checkbox" checked={hasEmergencyF} onChange={e=>{setHasEmergencyF(e.target.checked);setPage(1)}} style={{ width:'14px', height:'14px', accentColor:'#ef4444' }} />
+              <AlertCircle size={13} style={{ color: hasEmergencyF ? '#ef4444' : '#9ca3af' }} /> Active Emergencies Only
+            </label>
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <div className="table-container glass-panel">
@@ -618,7 +705,45 @@ export default function ClientsPage() {
           <tbody>
             {/* Rows */}
             {loading ? (
-              <tr><td colSpan={10} style={{ padding:'64px', textAlign:'center', color:'#9ca3af', fontWeight:500 }}>Loading dynamic data...</td></tr>
+              Array.from({ length: 5 }).map((_, i) => (
+                <tr key={`skel-${i}`} style={{ borderBottom:'1px solid rgba(255,255,255,0.05)' }}>
+                  <td style={{ padding:'16px', textAlign:'center' }}>
+                    <div style={{ width:'20px', height:'20px', borderRadius:'4px', background:'rgba(255,255,255,0.05)', animation:'pulse 1.5s infinite', margin:'0 auto' }} />
+                  </td>
+                  <td style={{ padding:'16px' }}>
+                    <div style={{ width:'120px', height:'16px', borderRadius:'4px', background:'rgba(255,255,255,0.05)', animation:'pulse 1.5s infinite', marginBottom:'6px' }} />
+                    <div style={{ width:'80px', height:'12px', borderRadius:'4px', background:'rgba(255,255,255,0.03)', animation:'pulse 1.5s infinite' }} />
+                  </td>
+                  <td style={{ padding:'16px' }}>
+                    <div style={{ width:'100px', height:'14px', borderRadius:'4px', background:'rgba(255,255,255,0.05)', animation:'pulse 1.5s infinite' }} />
+                  </td>
+                  <td className="hide-tablet" style={{ padding:'16px' }}>
+                    <div style={{ width:'90px', height:'14px', borderRadius:'4px', background:'rgba(255,255,255,0.05)', animation:'pulse 1.5s infinite' }} />
+                  </td>
+                  <td style={{ padding:'16px' }}>
+                    <div style={{ width:'80px', height:'24px', borderRadius:'12px', background:'rgba(255,255,255,0.05)', animation:'pulse 1.5s infinite' }} />
+                  </td>
+                  <td className="hide-mobile" style={{ padding:'16px' }}>
+                    <div style={{ width:'70px', height:'20px', borderRadius:'6px', background:'rgba(255,255,255,0.05)', animation:'pulse 1.5s infinite' }} />
+                  </td>
+                  <td className="hide-mobile" style={{ padding:'16px' }}>
+                    <div style={{ width:'140px', height:'24px', borderRadius:'4px', background:'rgba(255,255,255,0.05)', animation:'pulse 1.5s infinite' }} />
+                  </td>
+                  <td style={{ padding:'16px' }}>
+                    <div style={{ width:'160px', height:'32px', borderRadius:'4px', background:'rgba(255,255,255,0.05)', animation:'pulse 1.5s infinite' }} />
+                  </td>
+                  <td className="hide-tablet" style={{ padding:'16px' }}>
+                    <div style={{ width:'40px', height:'14px', borderRadius:'4px', background:'rgba(255,255,255,0.05)', animation:'pulse 1.5s infinite' }} />
+                  </td>
+                  <td style={{ padding:'16px' }}>
+                    <div style={{ display:'flex', gap:'8px' }}>
+                      <div style={{ width:'28px', height:'28px', borderRadius:'8px', background:'rgba(255,255,255,0.05)', animation:'pulse 1.5s infinite' }} />
+                      <div style={{ width:'28px', height:'28px', borderRadius:'8px', background:'rgba(255,255,255,0.05)', animation:'pulse 1.5s infinite' }} />
+                      <div style={{ width:'28px', height:'28px', borderRadius:'8px', background:'rgba(255,255,255,0.05)', animation:'pulse 1.5s infinite' }} />
+                    </div>
+                  </td>
+                </tr>
+              ))
             ) : clients.length === 0 ? (
               <tr><td colSpan={10} style={{ padding:'64px', textAlign:'center', color:'#9ca3af', fontWeight:500 }}>No clients found. Start by adding one!</td></tr>
             ) : clients.map((c, i) => {

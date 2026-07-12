@@ -3,14 +3,17 @@ import prisma from '@/lib/prisma'
 import * as bcrypt from 'bcryptjs'
 import { signToken } from '@/lib/auth'
 import { cookies } from 'next/headers'
+import { LoginSchema, zodError } from '@/lib/schemas'
 
 export async function POST(req: Request) {
   try {
-    const { username, password } = await req.json()
-
-    if (!username || !password) {
-      return NextResponse.json({ error: 'Username and password are required' }, { status: 400 })
+    let body: unknown
+    try { body = await req.json() } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
+    const result = LoginSchema.safeParse(body)
+    if (!result.success) return zodError(result.error)
+    const { username, password } = result.data
 
     const user = await prisma.user.findUnique({
       where: { username },

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import * as bcrypt from 'bcryptjs'
+import { UserCreateSchema, zodError } from '@/lib/schemas'
 
 export async function GET() {
   try {
@@ -23,11 +24,14 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const { name, username, password } = await req.json()
-    
-    if (!name || !username || !password) {
-      return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+    let body: unknown
+    try { body = await req.json() } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
+    const result = UserCreateSchema.safeParse(body)
+    if (!result.success) return zodError(result.error)
+
+    const { name, username, password, role } = result.data
 
     const existingUser = await prisma.user.findUnique({ where: { username } })
     if (existingUser) {
@@ -35,13 +39,13 @@ export async function POST(req: Request) {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10)
-    
+
     const user = await prisma.user.create({
       data: {
         name,
         username,
         password: hashedPassword,
-        role: 'EMPLOYEE',
+        role: role ?? 'EMPLOYEE',
       }
     })
 

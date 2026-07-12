@@ -1,4 +1,9 @@
-# Marketing Portal - Technical Documentation
+# Marketing Portal - Technical Documentation (v2.0)
+
+> [!NOTE]
+> This is the updated, comprehensive documentation of the **Marketing Portal** codebase, merging individual component guides and codebase assessments.
+
+---
 
 ## 1. Project Overview
 The **Marketing Portal** is a high-end, custom-built CRM and operations management system designed for marketing teams. It simplifies client acquisition, tracking, and team collaboration by providing a centralized dashboard for managing prospects, logging activities, and integrating with external tools like Google Sheets.
@@ -11,40 +16,50 @@ The **Marketing Portal** is a high-end, custom-built CRM and operations manageme
 
 ---
 
-## 2. Technology Stack
-- **Framework**: Next.js 14+ (App Router)
-- **Language**: TypeScript
-- **Database**: PostgreSQL
-- **ORM**: Prisma
-- **Styling**: Vanilla CSS with Modern Glassmorphism & Animations
-- **Authentication**: JWT-based cookie authentication
-- **External APIs**: Google Sheets API, Google OAuth 2.0
+## 2. Folder Structure & Files
+
+- **App Directory**: [app/](file:///D:/MERKETING-PROJECT-IN-HOUSE/app) contains route groups and API routes.
+  - `(auth)`: Login route and layout.
+  - `(dashboard)`: Dashboard routes like calls, clients, employees, permissions, settings, sheets.
+  - `api`: API endpoints for CRM database manipulation and Google integrations.
+  - [globals.css](file:///D:/MERKETING-PROJECT-IN-HOUSE/app/globals.css): Vanilla styling variables, animations, and glassmorphism.
+- **Components**: Reusable UI blocks in [components/](file:///D:/MERKETING-PROJECT-IN-HOUSE/components).
+  - [SideNav.tsx](file:///D:/MERKETING-PROJECT-IN-HOUSE/components/SideNav.tsx): Renders the main sidebar dynamically filtered by user permissions.
+  - [TopBar.tsx](file:///D:/MERKETING-PROJECT-IN-HOUSE/components/TopBar.tsx): Shared header with user info, status online indicator, notifications, and logout action.
+  - [DashboardClient.tsx](file:///D:/MERKETING-PROJECT-IN-HOUSE/components/DashboardClient.tsx): Client-side wrapper for sidebars, responsiveness, and overlay.
+- **Libraries**: Logic modules under [lib/](file:///D:/MERKETING-PROJECT-IN-HOUSE/lib).
+  - [auth.ts](file:///D:/MERKETING-PROJECT-IN-HOUSE/lib/auth.ts): JWT verification and signing using the `jose` library.
+  - [google.ts](file:///D:/MERKETING-PROJECT-IN-HOUSE/lib/google.ts): Google Sheets API integrations using `googleapis` with settings-based configurations.
+  - [prisma.ts](file:///D:/MERKETING-PROJECT-IN-HOUSE/lib/prisma.ts): Singleton wrapper for the database client.
+- **Database Schema**: [schema.prisma](file:///D:/MERKETING-PROJECT-IN-HOUSE/prisma/schema.prisma) defines model rules and relations.
+- **Scripts**: Automation scripts inside [scripts/](file:///D:/MERKETING-PROJECT-IN-HOUSE/scripts).
+  - [sync-emergency-counts.ts](file:///D:/MERKETING-PROJECT-IN-HOUSE/scripts/sync-emergency-counts.ts): Denormalizes client emergency counters.
+  - [check-google.js](file:///D:/MERKETING-PROJECT-IN-HOUSE/scripts/check-google.js): Validates OAuth keys setup.
+  - [fix-google-creds.js](file:///D:/MERKETING-PROJECT-IN-HOUSE/scripts/fix-google-creds.js): Updates broken credentials in the database.
+- **Routing Proxy**: [proxy.ts](file:///D:/MERKETING-PROJECT-IN-HOUSE/proxy.ts) manages route protections and redirects.
+- **Detailed Documentation**: Find supplementary files in the [doc/](file:///D:/MERKETING-PROJECT-IN-HOUSE/doc) directory.
 
 ---
 
 ## 3. Database Structure & Relations
+The backend is backed by a PostgreSQL database with Prisma ORM.
 
-### Core Models:
-1.  **User**:
-    - Stores credentials, names, and roles (`SUPER_ADMIN`, `EMPLOYEE`).
-    - **Relations**: Owns clients, notes, sheets, and permissions.
-2.  **Client**:
-    - The heart of the CRM. Stores shop names, contact info, status (`PROSPECT`, `INTERESTED`, etc.), and priority.
-    - **Relations**: Linked to a `Market`, assigned to a `User`, and has many `ClientNotes`.
-3.  **ClientNote**:
-    - Logs specific interactions.
-    - **Fields**: `type` (CALL, VISIT, FOLLOW_UP, etc.), `content`, and a custom `feedbackRating` (1-10).
-4.  **GoogleSheet**:
-    - Tracks spreadsheet metadata for integration.
-    - **Relations**: Tracks which cells (`SheetCell`) belong to which sheet.
-5.  **Permission**:
-    - A join table linking `Users` to specific `navKeys` (e.g., `clients`, `sheets`) to control UI access.
+### Models:
+1.  **User**: Stores credentials, names, and roles (`SUPER_ADMIN`, `EMPLOYEE`).
+2.  **Permission**: A join table mapping a `User` to specific navigation keys (`navKey`).
+3.  **Setting**: Simple key-value store for system-wide configuration, specifically used to store Google OAuth refresh tokens and Client IDs.
+4.  **Client**: CRM entity tracking address, phone, priority, status, ratings, and social URLs.
+5.  **ClientNote**: Logs interaction history (calls, visits, follow-ups, complaints, SMS, etc.).
+6.  **EmergencyNote**: Urgent notes flagging a client's emergency status.
+7.  **CallLog**: Phone dial auditing, log details, and call duration values.
+8.  **GoogleSheet**: Tracks spreadsheet metadata for integration.
+9.  **SheetCell**: Represents individual cell data within an integrated sheet.
 
-### Relationship Diagram (Simplified):
+### Key Relationships:
 - `User` 1:N `Client` (Assigned/Created)
 - `Client` 1:N `ClientNote`
+- `Client` 1:N `EmergencyNote`
 - `Client` 1:N `CallLog`
-- `Market` 1:N `Client`
 - `GoogleSheet` 1:N `SheetCell`
 
 ---
@@ -52,70 +67,76 @@ The **Marketing Portal** is a high-end, custom-built CRM and operations manageme
 ## 4. Role & Permission System
 
 ### Roles:
-- **SUPER_ADMIN**: Full access to all modules, system settings, employee management, and permission overrides.
+- **SUPER_ADMIN**: Full access to all modules, settings, employee control, and permission overrides.
 - **EMPLOYEE**: Restricted access based on assigned permissions.
 
 ### Permission Logic:
-The system uses a combination of Proxy logic and Component-level checks:
-- **Proxy (proxy.ts)**: Blocks access to sensitive API routes and pages (like `/settings` and `/permissions`) for non-admins.
-- **SideNav Filtering**: Dynamically hides navigation links based on the `permissions` array stored in the user session.
-- **Action Level**: Only authors or admins can edit certain records.
+- **Proxy Protection**: [proxy.ts](file:///D:/MERKETING-PROJECT-IN-HOUSE/proxy.ts) intercepts requests and redirects unauthorized roles from admin pages like `/settings` and `/permissions`.
+- **SideNav Filtering**: [SideNav.tsx](file:///D:/MERKETING-PROJECT-IN-HOUSE/components/SideNav.tsx) trims navigation options for employee sessions.
+- **Route Authorization**: Individual API routes check user permission entries before serving queries.
 
 ---
 
 ## 5. Main Components & Modules
 
-### Dashboard (`/dashboard`)
-Displays high-level statistics:
-- Total Clients vs. Converted Clients.
-- Recent activities and conversion rates.
+### Dashboard Overview (`/dashboard`)
+Displays campaigns count, budgets, active employee counters, and analytical graphs.
 
 ### Client Management (`/clients`)
-- **Listing**: Searchable, filterable table with status-based color coding.
-- **Details**: Comprehensive view of client data, activity history, and a quick-log form to update statuses and ratings.
+- Searchable, filterable client lists sorted dynamically.
+- Client details views listing all notes, logs, and a status update panel.
 
 ### Google Sheets Module (`/sheets`)
-- Allows users to link and manage Google Spreadsheets directly from the portal.
-- Tracks cell-level data changes for auditing.
+- Sync interface for linking external Google Spreadsheets directly to the dashboard.
+- Format tracking and caching using the `SheetCell` relation.
 
-### Employee Management (`/employees` & `/permissions`)
-- Admin tools to create new users and toggle specific module access (e.g., giving an employee access to 'Clients' but not 'Sheets').
+### Team Control (`/employees` & `/permissions`)
+- Admin managers for registration, access key configuration, and credentials resetting.
 
 ---
 
 ## 6. Functional Workflows
 
-### Adding/Updating a Client:
-1. High-level info (Name, Phone, Market) is entered.
-2. The user can log an "Activity" which automatically updates the client's `status` and `lastFollowUpAt`.
-3. Feedback scores (1-10) are used to prioritize high-potential leads.
+### Client Status Transitions:
+1. New client record initialized as `PROSPECT`.
+2. Interaction logged via calls/visits moves status to `CONTACTED` or `INTERESTED`.
+3. High feedback ratings prioritize conversions.
 
-### Permission Management:
-1. Super Admin visits the Permissions page.
-2. Selects an Employee.
-3. Toggles access for specific navigation keys (e.g., `calls`, `sheets`).
-4. Changes take effect on the employee's next page load/session refresh.
+### Permission Toggling:
+1. Admin visits the permissions panel.
+2. Selects an employee and checks/unchecks module keys.
+3. Access controls update immediately on the next navigation request.
 
 ---
 
-## 7. Developer Instructions (Future AI/Humans)
+## 7. Developer Instructions
 
 ### Environment Setup:
-- Requires `DATABASE_URL` for PostgreSQL.
-- Requires `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and various `REFRESH_TOKENS` in the `settings` table for Google integration.
+- Requires `DATABASE_URL` pointing to a PostgreSQL server.
+- Requires `JWT_SECRET` for signing authentication payloads.
+- Requires setup of Google settings table fields (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, etc.) for integrations.
 
-### Modifying Schema:
-1. Update `prisma/schema.prisma`.
-2. Run `npx prisma generate` and `npx prisma db push` (or create a migration).
-
-### Adding a New Module:
-1. Create a new route group in `app/(dashboard)`.
-2. Add a new `key` to the `NAV_GROUPS` constant in `components/SideNav.tsx`.
-3. Ensure the `proxy.ts` includes the new path if it requires special protection.
+### Operations Commands:
+- Run development server: `npm run dev`
+- Build production code: `npm run build`
+- Populate initial users: `npm run db:seed`
+- Push database changes: `npm run db:push`
+- Re-generate client: `npm run db:generate`
 
 ---
 
-## 8. Assessment & Recommendations
-- **Robustness**: The schema is well-designed with proper auditing fields (`createdAt`, `createdBy`).
-- **UI Performance**: Client listing uses glassmorphism; ensure virtualization is used if the client count exceeds 1000 records.
-- **Security**: Authentication is handled via secure HTTP-only cookies and JWT verification.
+## 8. Current Codebase Issues & Recommendations
+
+> [!WARNING]
+> The codebase has several "happy path" assumptions that must be addressed for true enterprise production-readiness.
+
+- **Widespread `any` Types**: Pervasive use of `any` bypasses compilation safety.
+  - *Fix*: Replace with Prisma-generated types like `Client`, `CallLog`, or custom TypeScript types.
+- **Lack of API Validation**: Request bodies inside routes are destructured without verification. Enums could cause unhandled 500 errors.
+  - *Fix*: Integrate validation using libraries like **Zod** to validate schema payloads.
+- **Unbounded Queries**: Certain database collections (e.g., `callLogs`) are queried without size constraints.
+  - *Fix*: Enforce pagination or `take` parameters on large datasets.
+- **Empty `catch` Blocks**: Network failures are caught but swallowed silently.
+  - *Fix*: Use `react-hot-toast` prompts to alert the user of network or API issues.
+- **Broken Linting Script**: The Next.js linter fails due to structural arguments.
+  - *Fix*: Adjust `package.json` lint commands to explicitly point to directories.

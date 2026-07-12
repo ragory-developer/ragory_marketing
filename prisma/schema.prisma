@@ -7,183 +7,21 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
 enum Role {
   SUPER_ADMIN
-  EMPLOYEE
-}
-
-model User {
-  id         String       @id @default(uuid()) @db.Uuid
-  name       String
-  username   String       @unique
-  password   String
-  role       Role         @default(EMPLOYEE)
-  isActive   Boolean      @default(true) @map("is_active")
-  createdAt  DateTime     @default(now()) @map("created_at")
-  updatedAt  DateTime     @updatedAt @map("updated_at")
-
-  permissions Permission[]
-  createdSheets GoogleSheet[] @relation("CreatedBy")
-  updatedSheets GoogleSheet[] @relation("UpdatedBy")
-  deletedSheets GoogleSheet[] @relation("DeletedBy")
-  clientsCreated  Client[]    @relation("ClientCreatedBy")
-  clientsAssigned Client[]    @relation("ClientAssignedTo")
-  clientNotes         ClientNote[] @relation("NoteAuthor")
-  emergencyNotes      EmergencyNote[] @relation("EmergencyNoteAuthor")
-  emergencyNotesDone  EmergencyNote[] @relation("EmergencyNoteDoneBy")
-  callLogs            CallLog[]
-
-  @@map("users")
-}
-
-model Permission {
-  id         String   @id @default(uuid()) @db.Uuid
-  userId     String   @map("user_id") @db.Uuid
-  navKey     String   @map("nav_key")
-  canAccess  Boolean  @default(false) @map("can_access")
-
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, navKey])
-  @@map("permissions")
-}
-
-model Setting {
-  id        String   @id @default(uuid()) @db.Uuid
-  key       String   @unique
-  value     String   @db.Text
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@map("settings")
-}
-
-model GoogleSheet {
-  id            String   @id @default(uuid()) @db.Uuid
-  name          String
-  spreadsheetId String   @unique @map("spreadsheet_id")
-  rowCount      Int      @default(10) @map("row_count")
-  colCount      Int      @default(10) @map("col_count")
-  createdBy     String   @map("created_by") @db.Uuid
-  updatedBy     String?  @map("updated_by") @db.Uuid
-  deletedBy     String?  @map("deleted_by") @db.Uuid
-  isDeleted     Boolean  @default(false) @map("is_deleted")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
-
-  creator       User      @relation("CreatedBy", fields: [createdBy], references: [id])
-  updater       User?     @relation("UpdatedBy", fields: [updatedBy], references: [id])
-  deleter       User?     @relation("DeletedBy", fields: [deletedBy], references: [id])
-  cells         SheetCell[]
-
-  @@map("google_sheets")
-}
-
-model SheetCell {
-  id        String  @id @default(uuid()) @db.Uuid
-  sheetId   String  @map("sheet_id") @db.Uuid
-  row       Int
-  col       Int
-  value     String? @db.Text
-  bold      Boolean @default(false)
-  italic    Boolean @default(false)
-  fillColor String? @map("fill_color")
-  textColor String? @map("text_color")
-  align     String  @default("left")
-  wrap      Boolean @default(false)
-  format    String  @default("text")
-
-  sheet     GoogleSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
-
-  @@unique([sheetId, row, col])
-  @@map("sheet_cells")
-}
-model Client {
-  id                String        @id @default(uuid()) @db.Uuid
-  name              String
-  shopName          String?       @map("shop_name")
-  address           String?       @db.Text
-  phone             String
-  alternativePhone  String?       @map("alternative_phone")
-  email             String?
-  businessType      String?       @map("business_type")
-  district          String?
-  area              String?
-  status            ClientStatus  @default(PROSPECT)
-  priority          Priority      @default(MEDIUM)
-  source            String?       // e.g. "Survey", "Referral", "Walk-in"
-  tags              String[]      @default([])
-  notes             String?       @db.Text
-  rating            Int           @default(0)
-  facebookUrl       String?       @map("facebook_url")
-  activeEmergencyCount Int           @default(0) @map("active_emergency_count")
-
-  marketId          String?       @map("market_id") @db.Uuid
-  market            Market?       @relation(fields: [marketId], references: [id])
-
-  createdById       String        @map("created_by") @db.Uuid
-  assignedToId      String?       @map("assigned_to") @db.Uuid
-  lastFollowUpAt    DateTime?     @map("last_follow_up_at")
-  nextFollowUpAt    DateTime?     @map("next_follow_up_at")
-  convertedAt       DateTime?     @map("converted_at")
-
-  createdAt         DateTime      @default(now()) @map("created_at")
-  updatedAt         DateTime      @updatedAt @map("updated_at")
-
-  createdBy         User          @relation("ClientCreatedBy", fields: [createdById], references: [id])
-  assignedTo        User?         @relation("ClientAssignedTo", fields: [assignedToId], references: [id])
-  clientNotes       ClientNote[]
-  emergencyNotes    EmergencyNote[]
-  callLogs          CallLog[]
-
-  @@index([phone])
-  @@index([status])
-  @@index([createdById])
-  @@index([district])
-  @@map("clients")
-}
-
-model Market {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String   @unique
-  createdAt DateTime @default(now()) @map("created_at")
-  clients   Client[]
-
-  @@map("markets")
-}
-
-model EmergencyNote {
-  id        String   @id @default(uuid()) @db.Uuid
-  clientId  String   @map("client_id") @db.Uuid
-  content   String   @db.Text
-  priority  Priority @default(MEDIUM)
-  isDone    Boolean  @default(false) @map("is_done")
-  doneById  String?  @map("done_by") @db.Uuid
-  authorId  String   @map("author_id") @db.Uuid
-  createdAt DateTime @default(now()) @map("created_at")
-
-  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  author    User     @relation("EmergencyNoteAuthor", fields: [authorId], references: [id])
-  doneBy    User?    @relation("EmergencyNoteDoneBy", fields: [doneById], references: [id])
-
-  @@index([clientId])
-  @@index([authorId])
-  @@map("emergency_notes")
-}
-
-
-model ClientNote {
-  id          String      @id @default(uuid()) @db.Uuid
-  clientId    String      @map("client_id") @db.Uuid
-  authorId    String      @map("author_id") @db.Uuid
-  content     String      @db.Text
-  type        NoteType    @default(GENERAL)
-  createdAt   DateTime    @default(now()) @map("created_at")
-
-  client      Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  author      User        @relation("NoteAuthor", fields: [authorId], references: [id])
-
-  @@index([clientId])
-  @@map("client_notes")
+  MARKETING_DIRECTOR
+  MARKETING_MANAGER
+  FIELD_MARKETING_MANAGER
+  DIGITAL_SPECIALIST
+  FIELD_EXECUTIVE
+  SALES_AGENT
+  SUPPORT_AGENT
+  VIEWER
+  EMPLOYEE // kept for backward compatibility
 }
 
 enum ClientStatus {
@@ -211,6 +49,239 @@ enum NoteType {
   SMS
 }
 
+enum CampaignType {
+  FIELD_SURVEY
+  DIGITAL
+  EMAIL
+  SMS
+  SOCIAL_MEDIA
+  FIELD_MARKETING
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+// ─────────────────────────────────────────────
+// USERS & ACCESS CONTROL
+// ─────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  username  String   @unique
+  password  String
+  role      Role     @default(EMPLOYEE)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Access Control
+  permissions Permission[]
+
+  // Google Sheets
+  createdSheets GoogleSheet[] @relation("CreatedBy")
+  updatedSheets GoogleSheet[] @relation("UpdatedBy")
+  deletedSheets GoogleSheet[] @relation("DeletedBy")
+
+  // CRM
+  clientsCreated  Client[] @relation("ClientCreatedBy")
+  clientsAssigned Client[] @relation("ClientAssignedTo")
+  clientNotes     ClientNote[]  @relation("NoteAuthor")
+  emergencyNotes  EmergencyNote[] @relation("EmergencyNoteAuthor")
+  emergencyNotesDone EmergencyNote[] @relation("EmergencyNoteDoneBy")
+  callLogs        CallLog[]
+
+  // Campaigns & Tasks
+  campaignsCreated Campaign[] @relation("CampaignCreatedBy")
+  tasksCreated     Task[]     @relation("TaskCreator")
+  tasksAssigned    Task[]     @relation("TaskAssignee")
+
+  // Notifications & Audit
+  notifications Notification[]
+  auditLogs     AuditLog[]
+
+  @@map("users")
+}
+
+model Permission {
+  id        String  @id @default(uuid()) @db.Uuid
+  userId    String  @map("user_id") @db.Uuid
+  navKey    String  @map("nav_key")
+  canAccess Boolean @default(false) @map("can_access")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, navKey])
+  @@map("permissions")
+}
+
+// ─────────────────────────────────────────────
+// SYSTEM CONFIGURATION
+// ─────────────────────────────────────────────
+
+model Setting {
+  id        String   @id @default(uuid()) @db.Uuid
+  key       String   @unique
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
+
+// ─────────────────────────────────────────────
+// GOOGLE SHEETS INTEGRATION
+// ─────────────────────────────────────────────
+
+model GoogleSheet {
+  id            String   @id @default(uuid()) @db.Uuid
+  name          String
+  spreadsheetId String   @unique @map("spreadsheet_id")
+  rowCount      Int      @default(10) @map("row_count")
+  colCount      Int      @default(10) @map("col_count")
+  createdBy     String   @map("created_by") @db.Uuid
+  updatedBy     String?  @map("updated_by") @db.Uuid
+  deletedBy     String?  @map("deleted_by") @db.Uuid
+  isDeleted     Boolean  @default(false) @map("is_deleted")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
+
+  creator User    @relation("CreatedBy", fields: [createdBy], references: [id])
+  updater User?   @relation("UpdatedBy", fields: [updatedBy], references: [id])
+  deleter User?   @relation("DeletedBy", fields: [deletedBy], references: [id])
+  cells   SheetCell[]
+
+  @@map("google_sheets")
+}
+
+model SheetCell {
+  id        String  @id @default(uuid()) @db.Uuid
+  sheetId   String  @map("sheet_id") @db.Uuid
+  row       Int
+  col       Int
+  value     String? @db.Text
+  bold      Boolean @default(false)
+  italic    Boolean @default(false)
+  fillColor String? @map("fill_color")
+  textColor String? @map("text_color")
+  align     String  @default("left")
+  wrap      Boolean @default(false)
+  format    String  @default("text")
+
+  sheet GoogleSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+
+  @@unique([sheetId, row, col])
+  @@map("sheet_cells")
+}
+
+// ─────────────────────────────────────────────
+// CRM — CLIENTS
+// ─────────────────────────────────────────────
+
+model Client {
+  id               String       @id @default(uuid()) @db.Uuid
+  name             String
+  shopName         String?      @map("shop_name")
+  address          String?      @db.Text
+  phone            String
+  alternativePhone String?      @map("alternative_phone")
+  email            String?
+  businessType     String?      @map("business_type")
+  district         String?
+  area             String?
+  status           ClientStatus @default(PROSPECT)
+  priority         Priority     @default(MEDIUM)
+  source           String?      // e.g. "Survey", "Referral", "Walk-in", "Campaign"
+  tags             String[]     @default([])
+  notes            String?      @db.Text
+  rating           Int          @default(0)
+  facebookUrl      String?      @map("facebook_url")
+  activeEmergencyCount Int      @default(0) @map("active_emergency_count")
+
+  marketId     String?  @map("market_id") @db.Uuid
+  market       Market?  @relation(fields: [marketId], references: [id])
+
+  createdById  String   @map("created_by") @db.Uuid
+  assignedToId String?  @map("assigned_to") @db.Uuid
+  lastFollowUpAt DateTime? @map("last_follow_up_at")
+  nextFollowUpAt DateTime? @map("next_follow_up_at")
+  convertedAt    DateTime? @map("converted_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  createdBy    User           @relation("ClientCreatedBy", fields: [createdById], references: [id])
+  assignedTo   User?          @relation("ClientAssignedTo", fields: [assignedToId], references: [id])
+  clientNotes  ClientNote[]
+  emergencyNotes EmergencyNote[]
+  callLogs     CallLog[]
+  campaigns    CampaignLead[]
+  tasks        Task[]
+  socialMessages SocialMessage[]
+
+  @@index([phone])
+  @@index([status])
+  @@index([createdById])
+  @@index([district])
+  @@index([assignedToId])
+  @@index([nextFollowUpAt])
+  @@map("clients")
+}
+
+model Market {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  clients   Client[]
+
+  @@map("markets")
+}
+
+model EmergencyNote {
+  id        String   @id @default(uuid()) @db.Uuid
+  clientId  String   @map("client_id") @db.Uuid
+  content   String   @db.Text
+  priority  Priority @default(MEDIUM)
+  isDone    Boolean  @default(false) @map("is_done")
+  doneById  String?  @map("done_by") @db.Uuid
+  authorId  String   @map("author_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  author User   @relation("EmergencyNoteAuthor", fields: [authorId], references: [id])
+  doneBy User?  @relation("EmergencyNoteDoneBy", fields: [doneById], references: [id])
+
+  @@index([clientId])
+  @@index([authorId])
+  @@map("emergency_notes")
+}
+
+model ClientNote {
+  id       String   @id @default(uuid()) @db.Uuid
+  clientId String   @map("client_id") @db.Uuid
+  authorId String   @map("author_id") @db.Uuid
+  content  String   @db.Text
+  type     NoteType @default(GENERAL)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  author User   @relation("NoteAuthor", fields: [authorId], references: [id])
+
+  @@index([clientId])
+  @@map("client_notes")
+}
+
 model CallLog {
   id          String   @id @default(uuid()) @db.Uuid
   clientId    String   @map("client_id") @db.Uuid
@@ -220,10 +291,169 @@ model CallLog {
   note        String?  @db.Text
   createdAt   DateTime @default(now()) @map("created_at")
 
-  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  author      User     @relation(fields: [authorId], references: [id])
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorId], references: [id])
 
   @@index([clientId])
   @@index([authorId])
   @@map("call_logs")
 }
+
+// ─────────────────────────────────────────────
+// CAMPAIGNS
+// ─────────────────────────────────────────────
+
+model Campaign {
+  id          String         @id @default(uuid()) @db.Uuid
+  title       String
+  type        CampaignType
+  status      CampaignStatus @default(DRAFT)
+  description String?        @db.Text
+  startDate   DateTime?      @map("start_date")
+  endDate     DateTime?      @map("end_date")
+  budget      Float?
+  spent       Float          @default(0)
+  targetCount Int?           @map("target_count") // planned lead count
+  createdById String         @map("created_by") @db.Uuid
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  createdBy User           @relation("CampaignCreatedBy", fields: [createdById], references: [id])
+  leads     CampaignLead[]
+  tasks     Task[]
+
+  @@index([status])
+  @@index([type])
+  @@index([createdById])
+  @@map("campaigns")
+}
+
+// Join table: which clients are in which campaigns
+model CampaignLead {
+  id         String   @id @default(uuid()) @db.Uuid
+  campaignId String   @map("campaign_id") @db.Uuid
+  clientId   String   @map("client_id") @db.Uuid
+  source     String?  // e.g. "field", "facebook", "manual"
+  addedAt    DateTime @default(now()) @map("added_at")
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  client   Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, clientId])
+  @@index([campaignId])
+  @@index([clientId])
+  @@map("campaign_leads")
+}
+
+// ─────────────────────────────────────────────
+// TASKS
+// ─────────────────────────────────────────────
+
+model Task {
+  id           String     @id @default(uuid()) @db.Uuid
+  title        String
+  description  String?    @db.Text
+  status       TaskStatus @default(PENDING)
+  priority     Priority   @default(MEDIUM)
+  dueDate      DateTime?  @map("due_date")
+  completedAt  DateTime?  @map("completed_at")
+
+  campaignId   String?  @map("campaign_id") @db.Uuid
+  campaign     Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  clientId     String?  @map("client_id") @db.Uuid
+  client       Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  assignedToId String?  @map("assigned_to") @db.Uuid
+  assignedTo   User?    @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  createdById  String   @map("created_by") @db.Uuid
+  createdBy    User     @relation("TaskCreator", fields: [createdById], references: [id])
+
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([assignedToId])
+  @@index([campaignId])
+  @@index([clientId])
+  @@index([dueDate])
+  @@map("tasks")
+}
+
+// ─────────────────────────────────────────────
+// NOTIFICATIONS
+// ─────────────────────────────────────────────
+
+model Notification {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  title     String
+  body      String   @db.Text
+  link      String?  // e.g. "/clients/abc-123"
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// ─────────────────────────────────────────────
+// AUDIT LOG
+// ─────────────────────────────────────────────
+
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  action    String   // e.g. "CLIENT_DELETED", "PERMISSION_CHANGED", "CAMPAIGN_CREATED"
+  entity    String   // e.g. "Client", "User", "Campaign"
+  entityId  String?  @map("entity_id")
+  details   Json?    // arbitrary extra data
+  ipAddress String?  @map("ip_address")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ─────────────────────────────────────────────
+// SOCIAL MEDIA INTEGRATIONS
+// ─────────────────────────────────────────────
+
+model SocialPost {
+  id        String   @id @default(uuid()) @db.Uuid
+  platform  String   // "FACEBOOK", "LINKEDIN"
+  content   String   @db.Text
+  imageUrl  String?  @map("image_url")
+  status    String   @default("PUBLISHED") // "PUBLISHED", "SCHEDULED"
+  mockLikes Int      @default(0) @map("mock_likes")
+  mockReach Int      @default(0) @map("mock_reach")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("social_posts")
+}
+
+model SocialMessage {
+  id             String   @id @default(uuid()) @db.Uuid
+  platform       String   @default("WHATSAPP") // "WHATSAPP", "FACEBOOK", "LINKEDIN"
+  direction      String   @default("OUTBOUND") // "INBOUND", "OUTBOUND"
+  senderName     String?  @map("sender_name")
+  to             String   // Phone number or User handle
+  content        String   @db.Text
+  status         String   @default("SENT") // "SENT", "DELIVERED", "RECEIVED"
+  isLeadCaptured Boolean  @default(false) @map("is_lead_captured")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  clientId       String?  @map("client_id") @db.Uuid
+  client         Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@map("social_messages")
+}
+

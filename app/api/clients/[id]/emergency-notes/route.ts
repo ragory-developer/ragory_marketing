@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthPayload } from '@/lib/auth'
 import prisma from '@/lib/prisma'
+import { getManagerIds, notifyMany } from '@/lib/notify'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -45,8 +46,30 @@ export async function POST(req: NextRequest, { params }: Params) {
     prisma.client.update({
       where: { id },
       data: { activeEmergencyCount: { increment: 1 } }
+    }),
+    prisma.clientNote.create({
+      data: {
+        clientId: id,
+        authorId: payload.userId as string,
+        content: `📌 [Reminder Created] Priority: ${priority || 'MEDIUM'}. Content: "${content}"`,
+        type: 'GENERAL',
+      }
     })
   ])
+
+  // Phase 7: Notify managers about the new emergency/reminder
+  const managers = await getManagerIds()
+  const otherManagers = managers.filter(m => m !== payload.userId)
+  const client = await prisma.client.findUnique({ where: { id }, select: { name: true } })
+  if (client) {
+    await notifyMany(
+      otherManagers,
+      `🚨 New Emergency on ${client.name}`,
+      `${payload.username || 'Someone'} created a ${priority || 'MEDIUM'} priority emergency note: "${content}"`,
+      `/clients/${id}`
+    )
+  }
+
   return NextResponse.json(note)
 }
 
@@ -65,15 +88,23 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  await prisma.$transaction([
-    prisma.emergencyNote.delete({ where: { id: noteId } }),
-    ...(note.isDone ? [] : [
-      prisma.client.update({
+  await prisma.$transaction(async (tx) => {
+    await tx.emergencyNote.delete({ where: { id: noteId } })
+    if (!note.isDone) {
+      await tx.client.update({
         where: { id: note.clientId },
         data: { activeEmergencyCount: { decrement: 1 } }
       })
-    ])
-  ])
+    }
+    await tx.clientNote.create({
+      data: {
+        clientId: note.clientId,
+        authorId: payload.userId as string,
+        content: `🗑️ [Reminder Deleted] Content: "${note.content}"`,
+        type: 'GENERAL',
+      }
+    })
+  })
   return NextResponse.json({ success: true })
 }
 
@@ -112,6 +143,22 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       await tx.client.update({
         where: { id: note.clientId },
         data: { activeEmergencyCount: { [isDone ? 'decrement' : 'increment']: 1 } }
+      })
+
+      // Get operator details
+      const user = await tx.user.findUnique({ where: { id: payload.userId as string } })
+      const operatorName = user?.name || payload.username || 'System'
+
+      // Log resolved/reopened event in ClientNote
+      await tx.clientNote.create({
+        data: {
+          clientId: note.clientId,
+          authorId: payload.userId as string,
+          content: isDone
+            ? `✅ [Reminder Resolved] Content: "${note.content}" (resolved by ${operatorName})`
+            : `🔄 [Reminder Reopened] Content: "${note.content}" (reopened by ${operatorName})`,
+          type: 'GENERAL',
+        }
       })
     }
 
