@@ -235,6 +235,43 @@ export async function POST(req: NextRequest) {
       }
     })
 
+    // If it's a Facebook outbound message, send it via the Meta Graph API
+    if (platform === 'FACEBOOK' && (direction === 'OUTBOUND' || !direction)) {
+      let pageAccessToken = process.env.FACEBOOK_PAGE_ACCESS_TOKEN
+      try {
+        const dbSetting = await prisma.setting.findUnique({ where: { key: 'FACEBOOK_PAGE_ACCESS_TOKEN' } })
+        if (dbSetting?.value) pageAccessToken = dbSetting.value
+      } catch (dbErr) {
+        console.error('[Social Inbox POST] Failed to fetch Page Access Token from DB:', dbErr)
+      }
+
+      if (pageAccessToken) {
+        try {
+          const fbRes = await fetch(
+            `https://graph.facebook.com/v21.0/me/messages?access_token=${pageAccessToken}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                recipient: { id: to },
+                message: { text: content }
+              })
+            }
+          )
+          if (!fbRes.ok) {
+            const fbErrData = await fbRes.json()
+            console.error('[Social Inbox POST] Facebook Send API error details:', fbErrData)
+          } else {
+            console.log(`[Social Inbox POST] Outbound message successfully transmitted to Facebook user (PSID: ${to})`)
+          }
+        } catch (fbErr) {
+          console.error('[Social Inbox POST] Failed to transmit message to Meta Send API:', fbErr)
+        }
+      } else {
+        console.warn('[Social Inbox POST] No Facebook Page Access Token configured. Message saved locally only.')
+      }
+    }
+
     return NextResponse.json({ success: true, message }, { status: 201 })
   } catch (err) {
     console.error('[Social Inbox POST]', err)

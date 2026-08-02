@@ -10,15 +10,25 @@ export async function GET() {
     const smsApiKey = await prisma.setting.findUnique({ where: { key: 'MRAM_SMS_API_KEY' } })
     const smsSenderId = await prisma.setting.findUnique({ where: { key: 'MRAM_SMS_SENDER_ID' } })
 
+    const fbAppId = await prisma.setting.findUnique({ where: { key: 'FACEBOOK_APP_ID' } })
+    const fbAppSecret = await prisma.setting.findUnique({ where: { key: 'FACEBOOK_APP_SECRET' } })
+    const fbPageAccessToken = await prisma.setting.findUnique({ where: { key: 'FACEBOOK_PAGE_ACCESS_TOKEN' } })
+    const fbWebhookVerifyToken = await prisma.setting.findUnique({ where: { key: 'FACEBOOK_WEBHOOK_VERIFY_TOKEN' } })
+
     const hasCredentials = !!(clientId?.value && clientSecret?.value)
 
-    // Returning empty services for now as requested to avoid Google API errors
     return NextResponse.json({ 
       hasCredentials, 
       services: {},
       mramSms: {
         apiKey: smsApiKey?.value || '',
         senderId: smsSenderId?.value || ''
+      },
+      facebook: {
+        appId: fbAppId?.value || '',
+        appSecret: fbAppSecret?.value || '',
+        pageAccessToken: fbPageAccessToken?.value || '',
+        webhookVerifyToken: fbWebhookVerifyToken?.value || ''
       }
     })
   } catch (error) {
@@ -73,6 +83,30 @@ export async function PUT(req: Request) {
         where: { key: 'GOOGLE_SERVICE_ACCOUNT' },
         update: { value: body.googleServiceAccountJson },
         create: { key: 'GOOGLE_SERVICE_ACCOUNT', value: body.googleServiceAccountJson }
+      })
+      return NextResponse.json({ success: true })
+    }
+
+    if (body.facebookAppId !== undefined && body.facebookAppSecret !== undefined && body.facebookPageAccessToken !== undefined && body.facebookWebhookVerifyToken !== undefined) {
+      await prisma.setting.upsert({
+        where: { key: 'FACEBOOK_APP_ID' },
+        update: { value: body.facebookAppId.trim() },
+        create: { key: 'FACEBOOK_APP_ID', value: body.facebookAppId.trim() }
+      })
+      await prisma.setting.upsert({
+        where: { key: 'FACEBOOK_APP_SECRET' },
+        update: { value: body.facebookAppSecret.trim() },
+        create: { key: 'FACEBOOK_APP_SECRET', value: body.facebookAppSecret.trim() }
+      })
+      await prisma.setting.upsert({
+        where: { key: 'FACEBOOK_PAGE_ACCESS_TOKEN' },
+        update: { value: body.facebookPageAccessToken.trim() },
+        create: { key: 'FACEBOOK_PAGE_ACCESS_TOKEN', value: body.facebookPageAccessToken.trim() }
+      })
+      await prisma.setting.upsert({
+        where: { key: 'FACEBOOK_WEBHOOK_VERIFY_TOKEN' },
+        update: { value: body.facebookWebhookVerifyToken.trim() },
+        create: { key: 'FACEBOOK_WEBHOOK_VERIFY_TOKEN', value: body.facebookWebhookVerifyToken.trim() }
       })
       return NextResponse.json({ success: true })
     }

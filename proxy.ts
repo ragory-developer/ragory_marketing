@@ -13,6 +13,7 @@ export default async function proxy(request: NextRequest) {
   const isPublic =
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/login') ||
+    pathname.startsWith('/api/social/webhooks') ||
     pathname === '/'
 
   if (isPublic) {

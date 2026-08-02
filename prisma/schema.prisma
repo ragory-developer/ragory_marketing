@@ -457,3 +457,23 @@ model SocialMessage {
   @@map("social_messages")
 }
 
+enum SocialPlatform {
+  FACEBOOK
+  WHATSAPP
+  INSTAGRAM
+  LINKEDIN
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageStatus {
+  RECEIVED
+  SENT
+  DELIVERED
+  FAILED
+}
+
+

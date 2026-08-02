@@ -75,6 +75,15 @@ export default function SettingsPage() {
   const [savingSms, setSavingSms] = useState(false)
   const [disconnecting, setDisconnecting] = useState<string | null>(null)
 
+  // Facebook Integration State
+  const [fbAppId, setFbAppId] = useState('')
+  const [fbAppSecret, setFbAppSecret] = useState('')
+  const [fbPageAccessToken, setFbPageAccessToken] = useState('')
+  const [fbWebhookVerifyToken, setFbWebhookVerifyToken] = useState('')
+  const [savingFb, setSavingFb] = useState(false)
+  const [testingFb, setTestingFb] = useState(false)
+  const [fbTestResult, setFbTestResult] = useState<any>(null)
+
   const fetchStatus = useCallback(async () => {
     try {
       const res = await fetch('/api/settings')
@@ -84,6 +93,12 @@ export default function SettingsPage() {
       if (data.mramSms) {
         setSmsApiKey(data.mramSms.apiKey)
         setSmsSenderId(data.mramSms.senderId)
+      }
+      if (data.facebook) {
+        setFbAppId(data.facebook.appId)
+        setFbAppSecret(data.facebook.appSecret)
+        setFbPageAccessToken(data.facebook.pageAccessToken)
+        setFbWebhookVerifyToken(data.facebook.webhookVerifyToken)
       }
     } catch {
       toast.error('Failed to load settings')
@@ -150,6 +165,52 @@ export default function SettingsPage() {
       setSavingSms(false)
     }
   }
+  const handleSaveFacebookSettings = async () => {
+    setSavingFb(true)
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          facebookAppId: fbAppId,
+          facebookAppSecret: fbAppSecret,
+          facebookPageAccessToken: fbPageAccessToken,
+          facebookWebhookVerifyToken: fbWebhookVerifyToken
+        })
+      })
+      if (!res.ok) throw new Error()
+      toast.success('Facebook integration settings saved!')
+      fetchStatus()
+    } catch {
+      toast.error('Failed to save Facebook settings.')
+    } finally {
+      setSavingFb(false)
+    }
+  }
+
+  const handleTestFacebookConnection = async () => {
+    setTestingFb(true)
+    setFbTestResult(null)
+    try {
+      const res = await fetch('/api/settings/test-facebook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pageAccessToken: fbPageAccessToken })
+      })
+      const data = await res.json()
+      setFbTestResult(data)
+      if (data.success) {
+        toast.success('Facebook connection verified!')
+      } else {
+        toast.error('Facebook connection test failed.')
+      }
+    } catch (err: any) {
+      setFbTestResult({ success: false, error: err.message || 'Network error' })
+      toast.error('Network error during Facebook connection test.')
+    } finally {
+      setTestingFb(false)
+    }
+  }
 
   const handleConnect = async (serviceId: string) => {
     if (!hasCredentials) {
@@ -196,8 +257,12 @@ export default function SettingsPage() {
 
       {/* Tab Nav */}
       <div style={{ display: 'flex', gap: '4px', background: 'rgba(0,0,0,0.3)', borderRadius: '10px', padding: '4px', marginBottom: '32px', width: 'fit-content', border: '1px solid rgba(255,255,255,0.07)' }}>
-        {[{ id: 'general', label: '⚙️ General' }, { id: 'integrations', label: '🔌 Integrations' }].map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
+        {[
+          { id: 'general', label: '⚙️ General' },
+          { id: 'integrations', label: '🔌 Integrations' },
+          { id: 'facebook', label: '👥 Facebook CRM' }
+        ].map(tab => (
+          <button key={tab.id} onClick={() => { setActiveTab(tab.id); setFbTestResult(null); }} style={{
             padding: '8px 20px', background: activeTab === tab.id ? 'rgba(255,255,255,0.1)' : 'transparent',
             color: activeTab === tab.id ? 'white' : '#6B7280', border: 'none', borderRadius: '7px',
             cursor: 'pointer', fontWeight: 500, fontSize: '14px', transition: 'all 0.2s'
@@ -358,6 +423,70 @@ export default function SettingsPage() {
                 </div>
               )
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Facebook Tab */}
+      {activeTab === 'facebook' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <div className="glass-panel" style={{ padding: '32px', maxWidth: '600px' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '6px', color: 'white' }}>Facebook CRM Integration</h2>
+            <p style={{ color: '#6B7280', fontSize: '14px', marginBottom: '28px' }}>Configure credentials for capturing leads from Facebook Business Pages.</p>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', color: '#D1D5DB', fontSize: '13px', fontWeight: 500 }}>Facebook App ID</label>
+                <input type="text" className="input-field" value={fbAppId} onChange={e => setFbAppId(e.target.value)} placeholder="e.g. 1327797066105292" />
+              </div>
+              
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', color: '#D1D5DB', fontSize: '13px', fontWeight: 500 }}>Facebook App Secret</label>
+                <input type="password" className="input-field" value={fbAppSecret} onChange={e => setFbAppSecret(e.target.value)} placeholder="e.g. 3baaee..." />
+              </div>
+              
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', color: '#D1D5DB', fontSize: '13px', fontWeight: 500 }}>Page Access Token (Permanent)</label>
+                <textarea className="input-field" value={fbPageAccessToken} onChange={e => setFbPageAccessToken(e.target.value)} placeholder="EAAS3n9h..." style={{ minHeight: '80px', resize: 'vertical', width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white', fontSize: '14px', fontFamily: 'monospace' }} />
+              </div>
+              
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', color: '#D1D5DB', fontSize: '13px', fontWeight: 500 }}>Webhook Verification Token</label>
+                <input type="text" className="input-field" value={fbWebhookVerifyToken} onChange={e => setFbWebhookVerifyToken(e.target.value)} placeholder="e.g. my_crm_secret_token_123" />
+              </div>
+
+              {fbTestResult && (
+                <div style={{
+                  padding: '14px', borderRadius: '8px',
+                  background: fbTestResult.success ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
+                  border: `1px solid ${fbTestResult.success ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                  color: fbTestResult.success ? '#10B981' : '#EF4444',
+                  fontSize: '13px', display: 'flex', alignItems: 'center', gap: '12px'
+                }}>
+                  {fbTestResult.success ? (
+                    <>
+                      {fbTestResult.picture && <img src={fbTestResult.picture} alt={fbTestResult.pageName} style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }} />}
+                      <div>
+                        <strong>Connection successful!</strong> Connected to Meta Page: <strong>{fbTestResult.pageName}</strong> (ID: {fbTestResult.pageId})
+                      </div>
+                    </>
+                  ) : (
+                    <div>
+                      <strong>Connection failed:</strong> {fbTestResult.error}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                <button className="btn-primary" style={{ width: 'auto' }} onClick={handleSaveFacebookSettings} disabled={savingFb}>
+                  {savingFb ? 'Saving...' : 'Save Facebook Settings'}
+                </button>
+                <button className="btn-secondary" style={{ width: 'auto', background: 'rgba(59,130,246,0.1)', color: '#60A5FA', border: '1px solid rgba(59,130,246,0.25)' }} onClick={handleTestFacebookConnection} disabled={testingFb || !fbPageAccessToken}>
+                  {testingFb ? 'Testing...' : '🔌 Test Connection'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
