@@ -1,6 +1,5 @@
 'use client'
-
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   MessageCircle, Globe, Briefcase, Send, Share2, Activity, Users,
   FileText, CheckCircle2, Inbox, UserPlus, Phone, Mail, Award, MapPin,
@@ -16,6 +15,14 @@ const COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b']
 
 export default function SocialDashboard() {
   const [activeTab, setActiveTab] = useState<'inbox' | 'analytics' | 'composer' | 'history'>('inbox')
+  
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
+
+  const scrollToBottom = () => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight
+    }
+  }
   
   // Stats
   const [stats, setStats] = useState({ totalPosts: 0, totalMessages: 0, totalLikes: 0, totalReach: 0 })
@@ -66,7 +73,26 @@ export default function SocialDashboard() {
   }, [])
 
   useEffect(() => {
-    if (activeTab === 'inbox') fetchInbox()
+    if (activeTab === 'inbox') {
+      fetchInbox()
+
+      // Establish real-time updates via Server-Sent Events (SSE)
+      const eventSource = new EventSource('/api/social/inbox/stream')
+
+      eventSource.onmessage = (event) => {
+        if (event.data === 'refresh') {
+          pollInbox()
+        }
+      }
+
+      eventSource.onerror = (e) => {
+        console.error('[SSE Connection Error] Browser will automatically retry. State:', eventSource.readyState)
+      }
+
+      return () => {
+        eventSource.close()
+      }
+    }
     if (activeTab === 'analytics') fetchAnalytics()
     if (activeTab === 'history') fetchHistory()
   }, [activeTab])
@@ -96,6 +122,36 @@ export default function SocialDashboard() {
     }
   }
 
+  const markAsRead = async (platform: string, to: string) => {
+    try {
+      // Optimistically update UI state to make it feel instant
+      setThreads(prev => prev.map(t => {
+        if (t.platform === platform && t.to === to) {
+          return { ...t, isRead: true }
+        }
+        return t
+      }))
+
+      // Persist to database
+      await fetch('/api/social/inbox', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platform, to })
+      })
+    } catch (e) {
+      console.error('Failed to mark thread as read:', e)
+    }
+  }
+
+  useEffect(() => {
+    if (selectedThreadId && threads.length > 0) {
+      const thread = threads.find(t => t.id === selectedThreadId)
+      if (thread && !thread.isRead) {
+        markAsRead(thread.platform, thread.to)
+      }
+    }
+  }, [selectedThreadId, threads])
+
   const fetchInbox = async () => {
     setLoadingInbox(true)
     try {
@@ -103,14 +159,23 @@ export default function SocialDashboard() {
       const data = await res.json()
       if (res.ok) {
         setThreads(data.threads || [])
-        if (data.threads?.length > 0 && !selectedThreadId) {
-          setSelectedThreadId(data.threads[0].id)
-        }
       }
     } catch (e) {
       toast.error('Failed to load conversations')
     } finally {
       setLoadingInbox(false)
+    }
+  }
+
+  const pollInbox = async () => {
+    try {
+      const res = await fetch('/api/social/inbox')
+      if (res.ok) {
+        const data = await res.json()
+        setThreads(data.threads || [])
+      }
+    } catch (e) {
+      console.error('Failed to poll inbox:', e)
     }
   }
 
@@ -146,6 +211,20 @@ export default function SocialDashboard() {
   }
 
   const activeThread = threads.find(t => t.id === selectedThreadId)
+
+  // Scroll to bottom when thread changes or new messages arrive
+  useEffect(() => {
+    if (selectedThreadId) {
+      const timer = setTimeout(scrollToBottom, 60)
+      return () => clearTimeout(timer)
+    }
+  }, [selectedThreadId])
+
+  useEffect(() => {
+    if (activeThread?.messages?.length) {
+      scrollToBottom()
+    }
+  }, [activeThread?.messages?.length])
 
   // Auto pre-fill convert form fields whenever thread changes
   useEffect(() => {
@@ -340,11 +419,18 @@ export default function SocialDashboard() {
             
             {/* Column 1: Conversations List */}
             <div style={{ borderRight: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', background: 'rgba(15,23,42,0.3)' }}>
-              <div style={{ padding: '16px', borderBottom: '1px solid rgba(255,255,255,0.08)', fontWeight: 700, color: 'white', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <MessageSquare size={16} color="#ec4899" /> Conversations ({threads.length})
+              <div style={{ padding: '16px', borderBottom: '1px solid rgba(255,255,255,0.08)', fontWeight: 700, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <MessageSquare size={16} color="#ec4899" /> Conversations ({threads.length})
+                </div>
+                {threads.filter(t => !t.isRead).length > 0 && (
+                  <span style={{ fontSize: '10px', background: '#ec4899', color: 'white', padding: '2px 8px', borderRadius: '10px', fontWeight: 800, boxShadow: '0 0 6px rgba(236,72,153,0.5)' }}>
+                    {threads.filter(t => !t.isRead).length} new
+                  </span>
+                )}
               </div>
               
-              <div style={{ overflowY: 'auto', flex: 1 }}>
+              <div style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
                 {loadingInbox ? (
                   <div style={{ padding: '32px', textAlign: 'center', color: '#9ca3af' }}>Loading inbox...</div>
                 ) : threads.length === 0 ? (
@@ -354,23 +440,38 @@ export default function SocialDashboard() {
                     <div
                       key={thread.id}
                       onClick={() => setSelectedThreadId(thread.id)}
-                      style={{
-                        padding: '16px', borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer',
-                        transition: 'all 0.15s',
-                        background: selectedThreadId === thread.id ? 'rgba(255,255,255,0.05)' : 'transparent',
-                        borderLeft: selectedThreadId === thread.id ? '4px solid #ec4899' : '4px solid transparent'
-                      }}
+                      className={`inbox-thread-card ${selectedThreadId === thread.id ? 'selected' : ''} ${!thread.isRead ? 'unread' : ''}`}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                        <span style={{ fontWeight: 600, color: 'white', fontSize: '14px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', width: '160px' }}>
+                        <span style={{ 
+                          fontWeight: !thread.isRead ? 800 : 600, 
+                          color: 'white', 
+                          fontSize: '14px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', width: '160px',
+                          display: 'flex', alignItems: 'center', gap: '6px'
+                        }}>
+                          {!thread.isRead && (
+                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ec4899', display: 'inline-block', boxShadow: '0 0 8px #ec4899' }} />
+                          )}
                           {thread.senderName || thread.to}
                         </span>
-                        <span style={{ fontSize: '10px', color: '#6b7280' }}>
-                          {new Date(thread.latestMessageTime).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          {!thread.isRead && (
+                            <span style={{ fontSize: '9px', background: 'rgba(236,72,153,0.2)', color: '#f472b6', padding: '1px 6px', borderRadius: '4px', fontWeight: 800, border: '1px solid rgba(236,72,153,0.4)' }}>
+                              NEW
+                            </span>
+                          )}
+                          <span style={{ fontSize: '10px', color: !thread.isRead ? '#f472b6' : '#6b7280', fontWeight: !thread.isRead ? 700 : 400 }}>
+                            {new Date(thread.latestMessageTime).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
                       </div>
                       
-                      <div style={{ fontSize: '12px', color: '#9ca3af', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', marginBottom: '8px' }}>
+                      <div style={{ 
+                        fontSize: '12px', 
+                        color: !thread.isRead ? '#f1f5f9' : '#9ca3af', 
+                        fontWeight: !thread.isRead ? 600 : 400,
+                        whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', marginBottom: '8px' 
+                      }}>
                         {thread.latestMessage}
                       </div>
 
@@ -398,19 +499,34 @@ export default function SocialDashboard() {
             </div>
 
             {/* Column 2: Threaded Message Viewer */}
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
               {activeThread ? (
                 <>
                   {/* Chat Header */}
                   <div style={{ padding: '16px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyItems: 'center', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                       <div style={{ fontWeight: 700, color: 'white' }}>{activeThread.senderName || activeThread.to}</div>
-                      <div style={{ fontSize: '11px', color: '#9ca3af' }}>{activeThread.to} • via {activeThread.platform}</div>
+                      <div style={{ fontSize: '11px', color: '#9ca3af', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        {activeThread.client ? (
+                          <>
+                            {activeThread.client.phone && <span>{activeThread.client.phone}</span>}
+                            {activeThread.client.phone && activeThread.client.email && <span>•</span>}
+                            {activeThread.client.email && <span>{activeThread.client.email}</span>}
+                          </>
+                        ) : (
+                          <span>{activeThread.to}</span>
+                        )}
+                        <span>•</span>
+                        <span>via {activeThread.platform}</span>
+                      </div>
                     </div>
                   </div>
 
                   {/* Message Stream */}
-                  <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px', background: 'rgba(0,0,0,0.15)' }}>
+                  <div 
+                    ref={messagesContainerRef}
+                    style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px', background: 'rgba(0,0,0,0.15)' }}
+                  >
                     {activeThread.messages.map((msg: any) => {
                       const isInbound = msg.direction === 'INBOUND'
                       return (

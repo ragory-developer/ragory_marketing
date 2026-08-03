@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthPayload } from '@/lib/auth'
 import prisma from '@/lib/prisma'
+import messageEmitter from '@/lib/events'
 
 export async function GET(req: NextRequest) {
   const { payload, error } = await getAuthPayload()
@@ -141,6 +142,19 @@ export async function GET(req: NextRequest) {
       }
     })
 
+    // Fetch all clients to dynamically match threads that might not be linked in the database
+    const allClients = await prisma.client.findMany({
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        status: true,
+        facebookUrl: true,
+        assignedTo: { select: { name: true } }
+      }
+    })
+
     // 3. Group messages into conversation threads by unique combination of (platform + to)
     const threadMap: Record<string, {
       id: string
@@ -149,6 +163,8 @@ export async function GET(req: NextRequest) {
       senderName: string | null
       latestMessage: string
       latestMessageTime: Date
+      latestMessageDirection: string
+      isRead: boolean
       isLeadCaptured: boolean
       clientId: string | null
       client: any
@@ -158,6 +174,17 @@ export async function GET(req: NextRequest) {
     for (const msg of messages) {
       const threadKey = `${msg.platform}:${msg.to}`
       if (!threadMap[threadKey]) {
+        // Try to find a matching client dynamically
+        let matchedClient: any = msg.client
+        if (!matchedClient) {
+          matchedClient = allClients.find(c => {
+            if (msg.platform === 'WHATSAPP' && c.phone === msg.to) return true
+            if (msg.senderName && c.name.toLowerCase() === msg.senderName.toLowerCase()) return true
+            if (msg.platform === 'FACEBOOK' && c.facebookUrl && (c.facebookUrl.includes(msg.to) || c.phone === msg.to)) return true
+            return false
+          })
+        }
+
         threadMap[threadKey] = {
           id: threadKey,
           platform: msg.platform,
@@ -165,9 +192,11 @@ export async function GET(req: NextRequest) {
           senderName: msg.senderName,
           latestMessage: msg.content,
           latestMessageTime: msg.createdAt,
-          isLeadCaptured: msg.isLeadCaptured,
-          clientId: msg.clientId,
-          client: msg.client,
+          latestMessageDirection: msg.direction,
+          isRead: msg.direction === 'OUTBOUND' ? true : msg.isRead,
+          isLeadCaptured: matchedClient ? true : msg.isLeadCaptured,
+          clientId: matchedClient ? matchedClient.id : msg.clientId,
+          client: matchedClient || null,
           messages: []
         }
       }
@@ -175,10 +204,16 @@ export async function GET(req: NextRequest) {
       threadMap[threadKey].messages.push(msg)
       threadMap[threadKey].latestMessage = msg.content
       threadMap[threadKey].latestMessageTime = msg.createdAt
-      threadMap[threadKey].isLeadCaptured = msg.isLeadCaptured
-      if (msg.clientId) {
+      threadMap[threadKey].latestMessageDirection = msg.direction
+      threadMap[threadKey].isRead = msg.direction === 'OUTBOUND' ? true : msg.isRead
+      
+      // Update client and capture status if dynamically matched
+      if (threadMap[threadKey].client) {
+        threadMap[threadKey].isLeadCaptured = true
+      } else if (msg.clientId) {
         threadMap[threadKey].clientId = msg.clientId
         threadMap[threadKey].client = msg.client
+        threadMap[threadKey].isLeadCaptured = true
       }
     }
 
@@ -272,9 +307,44 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Broadcast message event to SSE stream
+    messageEmitter.emit('new-message')
+
     return NextResponse.json({ success: true, message }, { status: 201 })
   } catch (err) {
     console.error('[Social Inbox POST]', err)
     return NextResponse.json({ error: 'Failed to process message' }, { status: 500 })
+  }
+}
+
+export async function PUT(req: NextRequest) {
+  const { error } = await getAuthPayload()
+  if (error) return error
+
+  try {
+    const { platform, to } = await req.json()
+    if (!platform || !to) {
+      return NextResponse.json({ error: 'Platform and to (recipient) are required' }, { status: 400 })
+    }
+
+    await prisma.socialMessage.updateMany({
+      where: {
+        platform,
+        to,
+        direction: 'INBOUND',
+        isRead: false
+      },
+      data: {
+        isRead: true
+      }
+    })
+
+    // Broadcast message event to SSE stream
+    messageEmitter.emit('new-message')
+
+    return NextResponse.json({ success: true })
+  } catch (err) {
+    console.error('[Social Inbox PUT]', err)
+    return NextResponse.json({ error: 'Failed to mark messages as read' }, { status: 500 })
   }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import messageEmitter from '@/lib/events'
 
 // GET handler for Meta validation challenge (handshake)
 export async function GET(req: NextRequest) {
@@ -36,10 +37,10 @@ export async function POST(req: NextRequest) {
       for (const entry of body.entry) {
         if (entry.messaging) {
           for (const messagingEvent of entry.messaging) {
-            const senderId = messagingEvent.sender.id // Page Scoped User ID (PSID)
+            const senderId = messagingEvent.sender?.id // Page Scoped User ID (PSID)
             const messageText = messagingEvent.message?.text
 
-            if (messageText) {
+            if (senderId && messageText) {
               let senderName = 'Facebook User'
               
               // 1. Fetch sender profile details from Meta Graph API
@@ -94,6 +95,9 @@ export async function POST(req: NextRequest) {
               })
 
               console.log(`[Meta Webhook] Inbound chat saved from ${senderName} (PSID: ${senderId})`)
+              
+              // Broadcast message event to SSE stream
+              messageEmitter.emit('new-message')
             }
           }
         }

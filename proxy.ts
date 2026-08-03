@@ -7,6 +7,16 @@ export default async function proxy(request: NextRequest) {
   const token = request.cookies.get('auth_token')?.value
   const { pathname } = request.nextUrl
 
+  // Helper to preserve correct protocol (http/https) behind proxies like ngrok
+  const getRedirectResponse = (path: string) => {
+    const redirectUrl = new URL(path, request.url)
+    const proto = request.headers.get('x-forwarded-proto')
+    if (proto === 'https') {
+      redirectUrl.protocol = 'https:'
+    }
+    return NextResponse.redirect(redirectUrl)
+  }
+
   // ──────────────────────────────────────────
   // Public routes — no auth required
   // ──────────────────────────────────────────
@@ -22,7 +32,7 @@ export default async function proxy(request: NextRequest) {
       try {
         const payload = await verifyToken(token)
         if (payload) {
-          return NextResponse.redirect(new URL('/dashboard', request.url))
+          return getRedirectResponse('/dashboard')
         }
       } catch {
         // Token invalid, continue to login
@@ -30,7 +40,7 @@ export default async function proxy(request: NextRequest) {
     }
     // No token on root → go to login
     if (!token && pathname === '/') {
-      return NextResponse.redirect(new URL('/login', request.url))
+      return getRedirectResponse('/login')
     }
     return NextResponse.next()
   }
@@ -43,7 +53,7 @@ export default async function proxy(request: NextRequest) {
     if (pathname.startsWith('/api/')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    return NextResponse.redirect(new URL('/login', request.url))
+    return getRedirectResponse('/login')
   }
 
   const payload = await verifyToken(token)
@@ -51,7 +61,7 @@ export default async function proxy(request: NextRequest) {
     if (pathname.startsWith('/api/')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    const response = NextResponse.redirect(new URL('/login', request.url))
+    const response = getRedirectResponse('/login')
     response.cookies.delete('auth_token')
     return response
   }
@@ -77,7 +87,7 @@ export default async function proxy(request: NextRequest) {
   // ──────────────────────────────────────────
   const routeRule = ROUTE_ROLE_MAP.find(r => pathname.startsWith(r.prefix))
   if (routeRule && !routeRule.allowed.includes(role)) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+    return getRedirectResponse('/dashboard')
   }
 
   return NextResponse.next()

@@ -530,3 +530,58 @@ td {
     grid-template-columns: 1fr !important;
   }
 }
+
+/* ==================== CUSTOM MODERN SCROLLBAR ==================== */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(236, 72, 153, 0.45);
+}
+
+/* ==================== SOCIAL INBOX CARDS ==================== */
+.inbox-thread-card {
+  padding: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border-left: 4px solid transparent;
+  background: transparent;
+}
+
+.inbox-thread-card:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.inbox-thread-card.unread {
+  background: rgba(236, 72, 153, 0.03);
+  border-left: 4px solid rgba(236, 72, 153, 0.55);
+}
+
+.inbox-thread-card.unread:hover {
+  background: rgba(236, 72, 153, 0.08);
+}
+
+.inbox-thread-card.selected {
+  background: rgba(255, 255, 255, 0.08);
+  border-left: 4px solid #ec4899;
+}
+
+.inbox-thread-card.selected:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+

@@ -449,6 +449,7 @@ model SocialMessage {
   content        String   @db.Text
   status         String   @default("SENT") // "SENT", "DELIVERED", "RECEIVED"
   isLeadCaptured Boolean  @default(false) @map("is_lead_captured")
+  isRead         Boolean  @default(false) @map("is_read")
   createdAt      DateTime @default(now()) @map("created_at")
 
   clientId       String?  @map("client_id") @db.Uuid
